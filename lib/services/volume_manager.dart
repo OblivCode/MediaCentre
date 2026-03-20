@@ -132,6 +132,30 @@ class VolumeManager extends ChangeNotifier {
     return success;
   }
 
+  Future<bool> updateMovie(MovieBlock updatedMovie) async {
+    if (_activeVolume == null) return false;
+
+    final updatedChildren = _library.children.map((media) {
+      if (media.id == updatedMovie.id) {
+        return updatedMovie;
+      }
+      return media;
+    }).toList();
+
+    final updatedLibrary = _library.copyWith(children: updatedChildren);
+    final success = await _activeVolume!.saveLibrary(updatedLibrary);
+
+    if (success) {
+      _library = updatedLibrary;
+      notifyListeners();
+    } else {
+      _error = 'Failed to update movie';
+      notifyListeners();
+    }
+
+    return success;
+  }
+
   Future<bool> authenticateVolume(VolumeProvider volume) async {
     final success = await volume.authenticate();
     if (success) {
