@@ -28,7 +28,8 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               ...manager.availableVolumes.map((volume) {
-                final isActive = manager.activeVolume?.providerId == volume.providerId;
+                final isActive =
+                    manager.activeVolume?.providerId == volume.providerId;
                 final isLoading = manager.isLoading && isActive;
 
                 return _VolumeTile(
@@ -63,14 +64,17 @@ class SettingsScreen extends StatelessWidget {
                             child: Text(
                               manager.error!,
                               style: TextStyle(
-                                color: Theme.of(context).colorScheme.onErrorContainer,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onErrorContainer,
                               ),
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.close),
                             onPressed: manager.clearError,
-                            color: Theme.of(context).colorScheme.onErrorContainer,
+                            color:
+                                Theme.of(context).colorScheme.onErrorContainer,
                           ),
                         ],
                       ),

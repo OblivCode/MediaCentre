@@ -19,7 +19,8 @@ class VolumeManager extends ChangeNotifier {
   CollectionBlock get library => _library;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  List<VolumeProvider> get availableVolumes => List.unmodifiable(_availableVolumes);
+  List<VolumeProvider> get availableVolumes =>
+      List.unmodifiable(_availableVolumes);
 
   VolumeManager() {
     _initializeVolumes();
