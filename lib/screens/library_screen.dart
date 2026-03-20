@@ -1,99 +1,131 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/models.dart';
-import '../services/storage_service.dart';
+import '../services/volume_manager.dart';
 import 'add_media_screen.dart';
+import 'settings_screen.dart';
 
-class LibraryScreen extends StatefulWidget {
+class LibraryScreen extends StatelessWidget {
   const LibraryScreen({super.key});
 
   @override
-  State<LibraryScreen> createState() => _LibraryScreenState();
-}
-
-class _LibraryScreenState extends State<LibraryScreen> {
-  final StorageService _storageService = StorageService();
-  CollectionBlock _library = CollectionBlock(id: 'root', title: 'My Library');
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadLibrary();
+  Widget build(BuildContext context) {
+    return Consumer<VolumeManager>(
+      builder: (context, manager, child) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('MediaCentre'),
+                if (manager.activeVolume != null)
+                  Text(
+                    manager.activeVolume!.providerName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.normal,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+            backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.settings),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  );
+                },
+              ),
+            ],
+          ),
+          body: _buildBody(context, manager),
+          floatingActionButton: FloatingActionButton(
+            onPressed: manager.isLoading
+                ? null
+                : () => _navigateToAddMedia(context, manager),
+            child: const Icon(Icons.add),
+          ),
+        );
+      },
+    );
   }
 
-  Future<void> _loadLibrary() async {
-    final library = await _storageService.loadLibrary();
-    setState(() {
-      _library = library;
-      _isLoading = false;
-    });
+  Widget _buildBody(BuildContext context, VolumeManager manager) {
+    if (manager.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (manager.error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(
+              'Something went wrong',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                manager.error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => manager.loadLibrary(),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (manager.library.children.isEmpty) {
+      return const Center(
+        child: Text(
+          'No movies yet.\nTap + to add one.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 16, color: Colors.grey),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: manager.library.children.length,
+      itemBuilder: (context, index) {
+        final media = manager.library.children[index];
+        if (media is MovieBlock) {
+          return _MovieCard(
+            movie: media,
+            onDelete: () => manager.deleteMovie(media.id),
+          );
+        }
+        return ListTile(
+          title: Text(media.title),
+          subtitle: const Text('Collection'),
+        );
+      },
+    );
   }
 
-  Future<void> _addMovie(MovieBlock movie) async {
-    final updatedLibrary = _library.addChild(movie);
-    await _storageService.saveLibrary(updatedLibrary);
-    setState(() {
-      _library = updatedLibrary;
-    });
-  }
-
-  Future<void> _deleteMovie(String id) async {
-    final updatedLibrary = _library.removeChild(id);
-    await _storageService.saveLibrary(updatedLibrary);
-    setState(() {
-      _library = updatedLibrary;
-    });
-  }
-
-  void _navigateToAddMedia() async {
+  void _navigateToAddMedia(BuildContext context, VolumeManager manager) async {
     final result = await Navigator.push<MovieBlock>(
       context,
       MaterialPageRoute(builder: (context) => const AddMediaScreen()),
     );
 
     if (result != null) {
-      _addMovie(result);
+      manager.addMovie(result);
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('MediaCentre'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _library.children.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No movies yet.\nTap + to add one.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: _library.children.length,
-                  itemBuilder: (context, index) {
-                    final media = _library.children[index];
-                    if (media is MovieBlock) {
-                      return _MovieCard(
-                        movie: media,
-                        onDelete: () => _deleteMovie(media.id),
-                      );
-                    }
-                    return ListTile(
-                      title: Text(media.title),
-                      subtitle: const Text('Collection'),
-                    );
-                  },
-                ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _navigateToAddMedia,
-        child: const Icon(Icons.add),
-      ),
-    );
   }
 }
 

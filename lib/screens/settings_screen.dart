@@ -88,10 +88,10 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: const Text('MediaCentre'),
-                subtitle: const Text('Version 1.0.0'),
+              const ListTile(
+                leading: Icon(Icons.info_outline),
+                title: Text('MediaCentre'),
+                subtitle: Text('Version 1.0.0'),
               ),
               const Padding(
                 padding: EdgeInsets.all(16),

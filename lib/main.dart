@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'services/volume_manager.dart';
 import 'screens/library_screen.dart';
 
 void main() {
@@ -10,14 +12,17 @@ class MediaCentreApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'MediaCentre',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-        useMaterial3: true,
+    return ChangeNotifierProvider(
+      create: (_) => VolumeManager()..initialize(),
+      child: MaterialApp(
+        title: 'MediaCentre',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+          useMaterial3: true,
+        ),
+        home: const LibraryScreen(),
       ),
-      home: const LibraryScreen(),
     );
   }
 }
