@@ -1,9 +1,83 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/tmdb_service.dart';
 import '../services/volume_manager.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final _apiKeyController = TextEditingController();
+  bool _isTestingKey = false;
+  bool _obscureKey = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadApiKey();
+  }
+
+  void _loadApiKey() {
+    final tmdbService = context.read<TmdbService>();
+    _apiKeyController.text = tmdbService.apiKey ?? '';
+  }
+
+  @override
+  void dispose() {
+    _apiKeyController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveApiKey() async {
+    final tmdbService = context.read<TmdbService>();
+    final prefs = await SharedPreferences.getInstance();
+    final key = _apiKeyController.text.trim();
+
+    if (key.isEmpty) {
+      tmdbService.setApiKey(null);
+      await prefs.remove('tmdb_api_key');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('TMDB API key removed')),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isTestingKey = true;
+    });
+
+    final isValid = await tmdbService.testApiKey(key);
+
+    setState(() {
+      _isTestingKey = false;
+    });
+
+    if (isValid) {
+      tmdbService.setApiKey(key);
+      await prefs.setString('tmdb_api_key', key);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('TMDB API key saved')),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid API key. Please check and try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,6 +92,110 @@ class SettingsScreen extends StatelessWidget {
             children: [
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  'TMDB API Configuration',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.movie_filter_outlined),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'The Movie Database API Key',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Required for movie search and poster images. Get a free key at themoviedb.org',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _apiKeyController,
+                          obscureText: _obscureKey,
+                          decoration: InputDecoration(
+                            labelText: 'API Key',
+                            border: const OutlineInputBorder(),
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(
+                                    _obscureKey
+                                        ? Icons.visibility
+                                        : Icons.visibility_off,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscureKey = !_obscureKey;
+                                    });
+                                  },
+                                ),
+                                if (_apiKeyController.text.isNotEmpty)
+                                  IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _apiKeyController.clear();
+                                      setState(() {});
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _isTestingKey ? null : _saveApiKey,
+                            icon: _isTestingKey
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.save),
+                            label: Text(
+                                _isTestingKey ? 'Validating...' : 'Save Key'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
                 child: Text(
                   'Storage Location',
                   style: TextStyle(

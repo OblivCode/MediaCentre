@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
-import '../services/tmdb_service.dart';
 import '../services/volume_manager.dart';
 import '../widgets/rating_modal.dart';
 import 'add_media_screen.dart';
