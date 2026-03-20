@@ -29,13 +29,26 @@ This project follows an agile methodology with sprint-based development.
 
 ### Sprint Process
 
-1. **Each sprint = one commit** - All changes for a sprint are committed together
-2. **Working code required** - Ensure the app builds, tests pass, and features work before completing a sprint
-3. **Sprint summary required** - Document changes in `/docs/sprint-summaries/sprintN-summary.md`
+1. **Sprints are divided into phases** - Each phase is its own commit
+2. **First phase** - Marks the start of the sprint with commit message: `Sprint N Phase 1: [description]`
+3. **Final phase** - Marks the end of the sprint with commit message: `Sprint N Phase X: [description]`
+4. **Working code required** - Ensure the app builds, tests pass, and features work at each phase
+5. **Sprint summary required** - Document changes in `/docs/sprint-summaries/sprintN-summary.md` after final phase
+
+### Commit Message Format
+
+```
+Sprint N Phase M: [brief description]
+```
+
+Examples:
+- `Sprint 2 Phase 1: Add edit movie functionality`
+- `Sprint 2 Phase 2: Implement search filter`
+- `Sprint 2 Phase 3: Add dark mode toggle`
 
 ### Sprint Summary Format
 
-Create a file `docs/sprint-summaries/sprintN-summary.md` for each sprint:
+Create a file `docs/sprint-summaries/sprintN-summary.md` after the final phase:
 
 ```markdown
 # Sprint N: [Sprint Title] - Summary
@@ -44,6 +57,12 @@ Create a file `docs/sprint-summaries/sprintN-summary.md` for each sprint:
 **Date:** YYYY-MM-DD
 
 ---
+
+## Phases
+
+1. Phase 1: [description]
+2. Phase 2: [description]
+...
 
 ## What Was Implemented
 
@@ -65,13 +84,16 @@ Create a file `docs/sprint-summaries/sprintN-summary.md` for each sprint:
 - [Ideas for future work]
 ```
 
-### Before Completing a Sprint
+### Before Completing Each Phase
 
 1. Run `flutter analyze` - must pass
 2. Run `flutter test` - all tests must pass
 3. Test the app manually on at least one platform
-4. Write sprint summary to `docs/sprint-summaries/`
-5. Commit with message: `Sprint N: [brief description]`
+4. Commit with message: `Sprint N Phase M: [brief description]`
+
+### After Final Phase
+
+1. Write sprint summary to `docs/sprint-summaries/sprintN-summary.md`
 
 ---
 
