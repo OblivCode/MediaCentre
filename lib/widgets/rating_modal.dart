@@ -72,104 +72,106 @@ class _RatingModalState extends State<RatingModal> {
         top: 16,
         bottom: MediaQuery.of(context).viewInsets.bottom + 16,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (posterUrl != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    imageUrl: posterUrl,
-                    width: 80,
-                    height: 120,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (posterUrl != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CachedNetworkImage(
+                      imageUrl: posterUrl,
                       width: 80,
                       height: 120,
-                      color: Colors.grey[300],
-                      child: const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                    errorWidget: (_, __, ___) => Container(
-                      width: 80,
-                      height: 120,
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.movie, size: 40),
-                    ),
-                  ),
-                ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.movie.title,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (runtime > 0) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '$runtime min',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        width: 80,
+                        height: 120,
+                        color: Colors.grey[300],
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                       ),
+                      errorWidget: (_, __, ___) => Container(
+                        width: 80,
+                        height: 120,
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.movie, size: 40),
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.movie.title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (runtime > 0) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '$runtime min',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
+              ],
+            ),
+            if (synopsis != null && synopsis.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                synopsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
-          ),
-          if (synopsis != null && synopsis.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              synopsis,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[700],
+            const SizedBox(height: 24),
+            const Center(
+              child: Text(
+                'Your Rating',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 12),
+            _StarRatingSelector(
+              rating: _rating,
+              onRatingChanged: (rating) {
+                setState(() {
+                  _rating = rating;
+                });
+              },
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _save,
+                child: const Text('Save'),
+              ),
             ),
           ],
-          const SizedBox(height: 24),
-          const Center(
-            child: Text(
-              'Your Rating',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _StarRatingSelector(
-            rating: _rating,
-            onRatingChanged: (rating) {
-              setState(() {
-                _rating = rating;
-              });
-            },
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _save,
-              child: const Text('Save'),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
