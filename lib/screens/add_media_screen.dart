@@ -1,6 +1,11 @@
+import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/movie_block.dart';
+import '../services/tmdb_service.dart';
+import '../widgets/rating_modal.dart';
 
 class AddMediaScreen extends StatefulWidget {
   const AddMediaScreen({super.key});
@@ -10,132 +15,382 @@ class AddMediaScreen extends StatefulWidget {
 }
 
 class _AddMediaScreenState extends State<AddMediaScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _runtimeController = TextEditingController();
-  int _rating = 3;
+  final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
 
-  void _saveMovie() {
-    if (_formKey.currentState!.validate()) {
+  List<TmdbSearchResult> _results = [];
+  bool _isSearching = false;
+  bool _isLoadingDetails = false;
+  String? _error;
+  Timer? _debounceTimer;
+
+  TmdbService get _tmdbService => context.read<TmdbService>();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      _searchMovies(query);
+    });
+  }
+
+  Future<void> _searchMovies(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _results = [];
+        _error = null;
+      });
+      return;
+    }
+
+    if (!_tmdbService.isConfigured) {
+      setState(() {
+        _error = 'TMDB API key not configured. Go to Settings to add it.';
+        _results = [];
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+      _error = null;
+    });
+
+    try {
+      final results = await _tmdbService.searchMovies(query);
+      setState(() {
+        _results = results;
+        _isSearching = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Search failed: ${e.toString()}';
+        _results = [];
+        _isSearching = false;
+      });
+    }
+  }
+
+  Future<void> _selectMovie(TmdbSearchResult result) async {
+    setState(() {
+      _isLoadingDetails = true;
+    });
+
+    try {
+      final details = await _tmdbService.getMovieDetails(result.id);
+      final posterUrl = details.getFullPosterUrl(_tmdbService);
+
       final movie = MovieBlock(
         id: const Uuid().v4(),
-        title: _titleController.text.trim(),
-        runtimeMinutes: int.tryParse(_runtimeController.text) ?? 0,
-        userRating: _rating,
+        title: details.title,
+        runtimeMinutes: details.runtime,
+        posterUrl: posterUrl,
+        synopsis: details.overview,
+        tmdbId: details.id,
       );
 
-      Navigator.pop(context, movie);
+      if (mounted) {
+        await RatingModal.show(
+          context: context,
+          movie: movie,
+          posterUrl: posterUrl,
+          synopsis: details.overview,
+          runtimeMinutes: details.runtime,
+          onSave: (updatedMovie) {
+            Navigator.pop(context, updatedMovie);
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load movie details: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingDetails = false;
+        });
+      }
     }
   }
 
   @override
-  void dispose() {
-    _titleController.dispose();
-    _runtimeController.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: const Text('Add Movie'),
+            backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+          ),
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search for a movie...',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                  ),
+                  onChanged: _onSearchChanged,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: _searchMovies,
+                ),
+              ),
+              if (!_tmdbService.isConfigured)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Card(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'TMDB API key not configured.\nGo to Settings to add it.',
+                              style: TextStyle(
+                                color:
+                                    Theme.of(context).colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Card(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        _error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: _isSearching
+                    ? const Center(child: CircularProgressIndicator())
+                    : _results.isEmpty && _searchController.text.isNotEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.movie_filter_outlined,
+                                  size: 64,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No movies found',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : _results.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.search,
+                                      size: 64,
+                                      color: Colors.grey[400],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Search for a movie to add',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.builder(
+                                controller: _scrollController,
+                                itemCount: _results.length,
+                                itemBuilder: (context, index) {
+                                  final result = _results[index];
+                                  return _SearchResultTile(
+                                    result: result,
+                                    tmdbService: _tmdbService,
+                                    onTap: () => _selectMovie(result),
+                                  );
+                                },
+                              ),
+              ),
+            ],
+          ),
+        ),
+        if (_isLoadingDetails)
+          Container(
+            color: Colors.black54,
+            child: const Center(child: CircularProgressIndicator()),
+          ),
+      ],
+    );
   }
+}
+
+class _SearchResultTile extends StatelessWidget {
+  final TmdbSearchResult result;
+  final TmdbService tmdbService;
+  final VoidCallback onTap;
+
+  const _SearchResultTile({
+    required this.result,
+    required this.tmdbService,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Movie'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        actions: [
-          TextButton(
-            onPressed: _saveMovie,
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
+    final posterUrl = result.getFullPosterUrl(tmdbService);
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
+          padding: const EdgeInsets.all(12),
+          child: Row(
             children: [
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: posterUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: posterUrl,
+                        width: 60,
+                        height: 90,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Container(
+                          width: 60,
+                          height: 90,
+                          color: Colors.grey[300],
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                        errorWidget: (_, __, ___) => Container(
+                          width: 60,
+                          height: 90,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.movie, size: 30),
+                        ),
+                      )
+                    : Container(
+                        width: 60,
+                        height: 90,
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.movie, size: 30),
+                      ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      result.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        if (result.year.isNotEmpty) ...[
+                          Icon(
+                            Icons.calendar_today,
+                            size: 14,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            result.year,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        if (result.voteAverage != null) ...[
+                          const Icon(
+                            Icons.star,
+                            size: 14,
+                            color: Colors.amber,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            result.voteAverage!.toStringAsFixed(1),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (result.overview != null && result.overview!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        result.overview!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[500],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a title';
-                  }
-                  return null;
-                },
-                textInputAction: TextInputAction.next,
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _runtimeController,
-                decoration: const InputDecoration(
-                  labelText: 'Runtime (minutes)',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter runtime';
-                  }
-                  final number = int.tryParse(value);
-                  if (number == null || number < 0) {
-                    return 'Please enter a valid number';
-                  }
-                  return null;
-                },
-                textInputAction: TextInputAction.done,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Rating',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 8),
-              _StarRatingSelector(
-                rating: _rating,
-                onRatingChanged: (rating) {
-                  setState(() {
-                    _rating = rating;
-                  });
-                },
+              Icon(
+                Icons.chevron_right,
+                color: Colors.grey[400],
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-}
-
-class _StarRatingSelector extends StatelessWidget {
-  final int rating;
-  final ValueChanged<int> onRatingChanged;
-
-  const _StarRatingSelector({
-    required this.rating,
-    required this.onRatingChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(5, (index) {
-        return GestureDetector(
-          onTap: () => onRatingChanged(index + 1),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Icon(
-              index < rating ? Icons.star : Icons.star_border,
-              color: Colors.amber,
-              size: 40,
-            ),
-          ),
-        );
-      }),
     );
   }
 }
