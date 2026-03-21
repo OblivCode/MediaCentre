@@ -1,28 +1,36 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/models.dart';
+import '../models/collection_block.dart';
+import '../models/movie_block.dart';
 import '../services/volume_manager.dart';
 import '../widgets/add_media_menu.dart';
+import '../widgets/collection_card.dart';
 import '../widgets/rating_modal.dart';
 import 'add_media_screen.dart';
 import 'create_collection_screen.dart';
 import 'settings_screen.dart';
 
 class LibraryScreen extends StatelessWidget {
-  const LibraryScreen({super.key});
+  final CollectionBlock? collection;
+
+  const LibraryScreen({super.key, this.collection});
+
+  CollectionBlock _getCurrentLibrary(VolumeManager manager) =>
+      collection ?? manager.library;
 
   @override
   Widget build(BuildContext context) {
     return Consumer<VolumeManager>(
       builder: (context, manager, child) {
+        final currentLibrary = _getCurrentLibrary(manager);
         return Scaffold(
           appBar: AppBar(
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('MediaCentre'),
-                if (manager.activeVolume != null)
+                Text(collection?.title ?? 'MediaCentre'),
+                if (manager.activeVolume != null && collection == null)
                   Text(
                     manager.activeVolume!.providerName,
                     style: TextStyle(
@@ -35,21 +43,23 @@ class LibraryScreen extends StatelessWidget {
             ),
             backgroundColor: Theme.of(context).colorScheme.inversePrimary,
             actions: [
-              IconButton(
-                icon: const Icon(Icons.settings),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  );
-                },
-              ),
+              if (collection == null)
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    );
+                  },
+                ),
             ],
           ),
-          body: _buildBody(context, manager),
+          body: _buildBody(context, manager, currentLibrary),
           floatingActionButton: FloatingActionButton(
-            onPressed:
-                manager.isLoading ? null : () => _showAddMenu(context, manager),
+            onPressed: manager.isLoading
+                ? null
+                : () => _showAddMenu(context, manager, currentLibrary),
             child: const Icon(Icons.add),
           ),
         );
@@ -57,7 +67,11 @@ class LibraryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBody(BuildContext context, VolumeManager manager) {
+  Widget _buildBody(
+    BuildContext context,
+    VolumeManager manager,
+    CollectionBlock currentLibrary,
+  ) {
     if (manager.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -92,37 +106,57 @@ class LibraryScreen extends StatelessWidget {
       );
     }
 
-    if (manager.library.children.isEmpty) {
-      return const Center(
+    if (currentLibrary.children.isEmpty) {
+      return Center(
         child: Text(
-          'No movies yet.\nTap + to add one.',
+          collection == null
+              ? 'No movies yet.\nTap + to add one.'
+              : 'This collection is empty.\nTap + to add items.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16, color: Colors.grey),
+          style: const TextStyle(fontSize: 16, color: Colors.grey),
         ),
       );
     }
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: manager.library.children.length,
+      itemCount: currentLibrary.children.length,
       itemBuilder: (context, index) {
-        final media = manager.library.children[index];
+        final media = currentLibrary.children[index];
         if (media is MovieBlock) {
           return _MovieCard(
             movie: media,
-            onDelete: () => manager.deleteMovie(media.id),
-            onEdit: (updated) => manager.updateMovie(updated),
+            onDelete: () => manager.deleteMedia(media.id),
+            onEdit: (updated) => manager.updateMedia(updated),
+          );
+        }
+        if (media is CollectionBlock) {
+          return CollectionCard(
+            collection: media,
+            onTap: () => _navigateToCollection(context, media),
+            onDelete: () => manager.deleteMedia(media.id),
           );
         }
         return ListTile(
           title: Text(media.title),
-          subtitle: const Text('Collection'),
+          subtitle: const Text('Unknown type'),
         );
       },
     );
   }
 
-  void _showAddMenu(BuildContext context, VolumeManager manager) async {
+  void _navigateToCollection(BuildContext context, CollectionBlock col) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => LibraryScreen(collection: col)),
+    );
+  }
+
+  void _showAddMenu(
+    BuildContext context,
+    VolumeManager manager,
+    CollectionBlock currentLibrary,
+  ) async {
     final choice = await AddMediaMenu.show(context);
     if (choice == null || !context.mounted) return;
 
@@ -143,7 +177,8 @@ class LibraryScreen extends StatelessWidget {
         final result = await Navigator.push<CollectionBlock>(
           context,
           MaterialPageRoute(
-              builder: (context) => const CreateCollectionScreen()),
+            builder: (context) => const CreateCollectionScreen(),
+          ),
         );
         if (result != null) {
           manager.addCollection(result);

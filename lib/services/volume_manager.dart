@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/collection_block.dart';
+import '../models/media_block.dart';
 import '../models/movie_block.dart';
 import 'volume_provider.dart';
 import 'volumes/local_volume.dart';
@@ -171,6 +172,63 @@ class VolumeManager extends ChangeNotifier {
     }
 
     return success;
+  }
+
+  Future<bool> deleteMedia(String id) async {
+    if (_activeVolume == null) return false;
+
+    final updatedLibrary = _removeMediaById(_library, id);
+    final success = await _activeVolume!.saveLibrary(updatedLibrary);
+
+    if (success) {
+      _library = updatedLibrary;
+      notifyListeners();
+    } else {
+      _error = 'Failed to delete item';
+      notifyListeners();
+    }
+
+    return success;
+  }
+
+  Future<bool> updateMedia(MediaBlock updatedMedia) async {
+    if (_activeVolume == null) return false;
+
+    final updatedLibrary = _updateMediaById(_library, updatedMedia);
+    final success = await _activeVolume!.saveLibrary(updatedLibrary);
+
+    if (success) {
+      _library = updatedLibrary;
+      notifyListeners();
+    } else {
+      _error = 'Failed to update item';
+      notifyListeners();
+    }
+
+    return success;
+  }
+
+  CollectionBlock _removeMediaById(CollectionBlock parent, String id) {
+    final updatedChildren = parent.children.where((m) => m.id != id).map((m) {
+      if (m is CollectionBlock) {
+        return _removeMediaById(m, id);
+      }
+      return m;
+    }).toList();
+    return parent.copyWith(children: updatedChildren);
+  }
+
+  CollectionBlock _updateMediaById(CollectionBlock parent, MediaBlock updated) {
+    final updatedChildren = parent.children.map((m) {
+      if (m.id == updated.id) {
+        return updated;
+      }
+      if (m is CollectionBlock) {
+        return _updateMediaById(m, updated);
+      }
+      return m;
+    }).toList();
+    return parent.copyWith(children: updatedChildren);
   }
 
   Future<bool> authenticateVolume(VolumeProvider volume) async {

@@ -12,7 +12,6 @@ class CreateCollectionScreen extends StatefulWidget {
 class _CreateCollectionScreenState extends State<CreateCollectionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  bool _isSaving = false;
 
   @override
   void dispose() {
@@ -64,14 +63,8 @@ class _CreateCollectionScreenState extends State<CreateCollectionScreen> {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _isSaving ? null : _save,
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Create'),
+                onPressed: _save,
+                child: const Text('Create'),
               ),
             ],
           ),
