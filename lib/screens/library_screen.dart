@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/collection_block.dart';
 import '../models/movie_block.dart';
+import '../models/tv_show_block.dart';
 import '../services/volume_manager.dart';
 import '../widgets/add_media_menu.dart';
 import '../widgets/collection_card.dart';
@@ -133,6 +134,13 @@ class LibraryScreen extends StatelessWidget {
             collections: manager.getAllCollections(),
           );
         }
+        if (media is TvShowBlock) {
+          return _TvShowCard(
+            tvShow: media,
+            onTap: () => _navigateToCollection(context, media),
+            onDelete: () => manager.deleteMedia(media.id),
+          );
+        }
         if (media is CollectionBlock) {
           return CollectionCard(
             collection: media,
@@ -173,9 +181,13 @@ class LibraryScreen extends StatelessWidget {
           manager.addMovie(result);
         }
       case AddMediaType.tvShow:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('TV Show support coming soon!')),
+        final result = await Navigator.push<TvShowBlock>(
+          context,
+          MaterialPageRoute(builder: (context) => const AddMediaScreen()),
         );
+        if (result != null) {
+          manager.addTvShow(result);
+        }
       case AddMediaType.collection:
         final result = await Navigator.push<CollectionBlock>(
           context,
@@ -335,6 +347,134 @@ class _StarRating extends StatelessWidget {
           size: 20,
         );
       }),
+    );
+  }
+}
+
+class _TvShowCard extends StatelessWidget {
+  final TvShowBlock tvShow;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _TvShowCard({
+    required this.tvShow,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: Key(tvShow.id),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => onDelete(),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      child: Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: tvShow.posterUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: tvShow.posterUrl!,
+                          width: 70,
+                          height: 105,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Container(
+                            width: 70,
+                            height: 105,
+                            color: Colors.grey[300],
+                            child: const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                          errorWidget: (_, __, ___) => Container(
+                            width: 70,
+                            height: 105,
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.tv, size: 32),
+                          ),
+                        )
+                      : Container(
+                          width: 70,
+                          height: 105,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.tv, size: 32),
+                        ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tvShow.title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+                      if (tvShow.network != null)
+                        Text(
+                          tvShow.network!,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      const SizedBox(height: 4),
+                      if (tvShow.status != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: tvShow.status == 'Ended'
+                                ? Colors.grey[300]
+                                : Colors.green[100],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            tvShow.status!,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: tvShow.status == 'Ended'
+                                  ? Colors.grey[700]
+                                  : Colors.green[800],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: Colors.grey[400],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/collection_block.dart';
 import '../models/media_block.dart';
 import '../models/movie_block.dart';
+import '../models/tv_show_block.dart';
 import 'volume_provider.dart';
 import 'volumes/local_volume.dart';
 import 'volumes/drive_volume.dart';
@@ -127,6 +128,23 @@ class VolumeManager extends ChangeNotifier {
       notifyListeners();
     } else {
       _error = 'Failed to save collection';
+      notifyListeners();
+    }
+
+    return success;
+  }
+
+  Future<bool> addTvShow(TvShowBlock tvShow) async {
+    if (_activeVolume == null) return false;
+
+    final updatedLibrary = _library.addChild(tvShow);
+    final success = await _activeVolume!.saveLibrary(updatedLibrary);
+
+    if (success) {
+      _library = updatedLibrary;
+      notifyListeners();
+    } else {
+      _error = 'Failed to save TV show';
       notifyListeners();
     }
 

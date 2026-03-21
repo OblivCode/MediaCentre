@@ -76,6 +76,52 @@ class TmdbService {
       return false;
     }
   }
+
+  Future<List<TmdbTvSearchResult>> searchTvShows(String query) async {
+    if (!isConfigured || query.trim().isEmpty) return [];
+
+    try {
+      final response = await http.get(
+        Uri.parse(
+          '$_baseUrl/search/tv?api_key=$_apiKey&query=${Uri.encodeComponent(query)}',
+        ),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('TMDB API error: ${response.statusCode}');
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final results = data['results'] as List<dynamic>? ?? [];
+
+      return results
+          .map((r) => TmdbTvSearchResult.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<TmdbTvDetails> getTvShowDetails(int tmdbId) async {
+    if (!isConfigured) {
+      throw Exception('TMDB API key not configured');
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/tv/$tmdbId?api_key=$_apiKey'),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('TMDB API error: ${response.statusCode}');
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return TmdbTvDetails.fromJson(data);
+    } catch (e) {
+      rethrow;
+    }
+  }
 }
 
 class TmdbSearchResult {
@@ -158,4 +204,87 @@ class TmdbMovieDetails {
     if (releaseDate == null || releaseDate!.isEmpty) return '';
     return releaseDate!.substring(0, 4);
   }
+}
+
+class TmdbTvSearchResult {
+  final int id;
+  final String name;
+  final String? posterPath;
+  final String? firstAirDate;
+  final double? voteAverage;
+  final String? overview;
+
+  TmdbTvSearchResult({
+    required this.id,
+    required this.name,
+    this.posterPath,
+    this.firstAirDate,
+    this.voteAverage,
+    this.overview,
+  });
+
+  factory TmdbTvSearchResult.fromJson(Map<String, dynamic> json) {
+    return TmdbTvSearchResult(
+      id: json['id'] as int,
+      name: json['name'] as String? ?? 'Unknown',
+      posterPath: json['poster_path'] as String?,
+      firstAirDate: json['first_air_date'] as String?,
+      voteAverage: (json['vote_average'] as num?)?.toDouble(),
+      overview: json['overview'] as String?,
+    );
+  }
+
+  String? getFullPosterUrl(TmdbService service) {
+    return service.getFullPosterUrl(posterPath);
+  }
+
+  String get year {
+    if (firstAirDate == null || firstAirDate!.isEmpty) return '';
+    return firstAirDate!.substring(0, 4);
+  }
+}
+
+class TmdbTvDetails {
+  final int id;
+  final String name;
+  final String? posterPath;
+  final String? overview;
+  final String? firstAirDate;
+  final double? voteAverage;
+  final String? status;
+  final List<String> networks;
+
+  TmdbTvDetails({
+    required this.id,
+    required this.name,
+    this.posterPath,
+    this.overview,
+    this.firstAirDate,
+    this.voteAverage,
+    this.status,
+    this.networks = const [],
+  });
+
+  factory TmdbTvDetails.fromJson(Map<String, dynamic> json) {
+    final networkList = json['networks'] as List<dynamic>? ?? [];
+    final networks =
+        networkList.map((n) => n['name'] as String? ?? '').toList();
+
+    return TmdbTvDetails(
+      id: json['id'] as int,
+      name: json['name'] as String? ?? 'Unknown',
+      posterPath: json['poster_path'] as String?,
+      overview: json['overview'] as String?,
+      firstAirDate: json['first_air_date'] as String?,
+      voteAverage: (json['vote_average'] as num?)?.toDouble(),
+      status: json['status'] as String?,
+      networks: networks,
+    );
+  }
+
+  String? getFullPosterUrl(TmdbService service) {
+    return service.getFullPosterUrl(posterPath);
+  }
+
+  String? get primaryNetwork => networks.isNotEmpty ? networks.first : null;
 }
