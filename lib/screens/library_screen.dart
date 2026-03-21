@@ -6,7 +6,6 @@ import '../models/collection_block.dart';
 import '../models/media_block.dart';
 import '../models/movie_block.dart';
 import '../models/tv_show_block.dart';
-import '../models/season_block.dart';
 import '../services/volume_manager.dart';
 import '../widgets/add_media_menu.dart';
 import '../widgets/collection_card.dart';
@@ -14,6 +13,7 @@ import '../widgets/rating_modal.dart';
 import 'add_media_screen.dart';
 import 'create_collection_screen.dart';
 import 'settings_screen.dart';
+import 'tv_show_detail_screen.dart';
 
 class LibraryScreen extends StatelessWidget {
   final CollectionBlock? collection;
@@ -140,18 +140,7 @@ class LibraryScreen extends StatelessWidget {
         if (media is TvShowBlock) {
           return _TvShowCard(
             tvShow: media,
-            onNavigate: () => _navigateToCollection(context, media),
-            onEdit: (updated) => manager.updateMedia(updated),
-            onDelete: () => manager.deleteMedia(media.id),
-            onMoveToCollection: (targetId) =>
-                manager.moveMediaToCollection(media.id, targetId),
-            collections: manager.getAllCollections(),
-          );
-        }
-        if (media is SeasonBlock) {
-          return _SeasonCard(
-            season: media,
-            onNavigate: () => _navigateToCollection(context, media),
+            onNavigate: () => _navigateToTvShow(context, media),
             onEdit: (updated) => manager.updateMedia(updated),
             onDelete: () => manager.deleteMedia(media.id),
             onMoveToCollection: (targetId) =>
@@ -178,6 +167,13 @@ class LibraryScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => LibraryScreen(collection: col)),
+    );
+  }
+
+  void _navigateToTvShow(BuildContext context, TvShowBlock tvShow) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => TvShowDetailScreen(tvShow: tvShow)),
     );
   }
 
@@ -537,139 +533,6 @@ class _TvShowCard extends StatelessWidget {
                             ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right,
-                  color: Colors.grey[400],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SeasonCard extends StatelessWidget {
-  final SeasonBlock season;
-  final VoidCallback onNavigate;
-  final ValueChanged<MediaBlock> onEdit;
-  final VoidCallback onDelete;
-  final ValueChanged<String>? onMoveToCollection;
-  final List<CollectionBlock> collections;
-
-  const _SeasonCard({
-    required this.season,
-    required this.onNavigate,
-    required this.onEdit,
-    required this.onDelete,
-    this.onMoveToCollection,
-    this.collections = const [],
-  });
-
-  Future<void> _showEditModal(BuildContext context) async {
-    final result = await RatingModal.show(
-      context: context,
-      media: season,
-      posterUrl: season.posterUrl,
-      collections: collections,
-    );
-
-    if (result != null) {
-      onEdit(result.media);
-      if (result.moveToCollectionId != null && onMoveToCollection != null) {
-        onMoveToCollection!(result.moveToCollectionId!);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dismissible(
-      key: Key(season.id),
-      direction: DismissDirection.endToStart,
-      onDismissed: (_) => onDelete(),
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.red,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      child: Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: InkWell(
-          onTap: () => _showEditModal(context),
-          onLongPress: () {
-            HapticFeedback.mediumImpact();
-            onNavigate();
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: season.posterUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: season.posterUrl!,
-                          width: 70,
-                          height: 105,
-                          fit: BoxFit.cover,
-                          placeholder: (_, __) => Container(
-                            width: 70,
-                            height: 105,
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                          errorWidget: (_, __, ___) => Container(
-                            width: 70,
-                            height: 105,
-                            color: Colors.grey[300],
-                            child: const Icon(Icons.video_library, size: 32),
-                          ),
-                        )
-                      : Container(
-                          width: 70,
-                          height: 105,
-                          color: Colors.grey[300],
-                          child: const Icon(Icons.video_library, size: 32),
-                        ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        season.title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Season ${season.seasonNumber}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (season.userRating > 0)
-                        _StarRating(rating: season.userRating),
                     ],
                   ),
                 ),

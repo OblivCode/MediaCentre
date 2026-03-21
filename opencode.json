@@ -6,5 +6,8 @@
         "command": ["dart", "mcp-server"],
         "environment": {}
     }
+  },
+  "compaction": {
+      "reserved": 100000
   }
 }

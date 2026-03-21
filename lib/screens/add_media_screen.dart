@@ -184,7 +184,7 @@ class _AddMediaScreenState extends State<AddMediaScreen>
         tmdbId: details.id,
         network: details.primaryNetwork,
         status: details.status,
-        children: seasons,
+        seasons: seasons,
       );
 
       if (mounted) {
