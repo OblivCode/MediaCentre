@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../services/volume_manager.dart';
+import '../widgets/add_media_menu.dart';
 import '../widgets/rating_modal.dart';
 import 'add_media_screen.dart';
+import 'create_collection_screen.dart';
 import 'settings_screen.dart';
 
 class LibraryScreen extends StatelessWidget {
@@ -46,9 +48,8 @@ class LibraryScreen extends StatelessWidget {
           ),
           body: _buildBody(context, manager),
           floatingActionButton: FloatingActionButton(
-            onPressed: manager.isLoading
-                ? null
-                : () => _navigateToAddMedia(context, manager),
+            onPressed:
+                manager.isLoading ? null : () => _showAddMenu(context, manager),
             child: const Icon(Icons.add),
           ),
         );
@@ -121,14 +122,32 @@ class LibraryScreen extends StatelessWidget {
     );
   }
 
-  void _navigateToAddMedia(BuildContext context, VolumeManager manager) async {
-    final result = await Navigator.push<MovieBlock>(
-      context,
-      MaterialPageRoute(builder: (context) => const AddMediaScreen()),
-    );
+  void _showAddMenu(BuildContext context, VolumeManager manager) async {
+    final choice = await AddMediaMenu.show(context);
+    if (choice == null || !context.mounted) return;
 
-    if (result != null) {
-      manager.addMovie(result);
+    switch (choice) {
+      case AddMediaType.movie:
+        final result = await Navigator.push<MovieBlock>(
+          context,
+          MaterialPageRoute(builder: (context) => const AddMediaScreen()),
+        );
+        if (result != null) {
+          manager.addMovie(result);
+        }
+      case AddMediaType.tvShow:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('TV Show support coming soon!')),
+        );
+      case AddMediaType.collection:
+        final result = await Navigator.push<CollectionBlock>(
+          context,
+          MaterialPageRoute(
+              builder: (context) => const CreateCollectionScreen()),
+        );
+        if (result != null) {
+          manager.addCollection(result);
+        }
     }
   }
 }

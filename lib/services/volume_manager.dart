@@ -115,6 +115,23 @@ class VolumeManager extends ChangeNotifier {
     return success;
   }
 
+  Future<bool> addCollection(CollectionBlock collection) async {
+    if (_activeVolume == null) return false;
+
+    final updatedLibrary = _library.addChild(collection);
+    final success = await _activeVolume!.saveLibrary(updatedLibrary);
+
+    if (success) {
+      _library = updatedLibrary;
+      notifyListeners();
+    } else {
+      _error = 'Failed to save collection';
+      notifyListeners();
+    }
+
+    return success;
+  }
+
   Future<bool> deleteMovie(String id) async {
     if (_activeVolume == null) return false;
 
