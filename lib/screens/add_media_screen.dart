@@ -97,16 +97,21 @@ class _AddMediaScreenState extends State<AddMediaScreen> {
       );
 
       if (mounted) {
-        await RatingModal.show(
+        setState(() {
+          _isLoadingDetails = false;
+        });
+
+        final updatedMovie = await RatingModal.show(
           context: context,
           movie: movie,
           posterUrl: posterUrl,
           synopsis: details.overview,
           runtimeMinutes: details.runtime,
-          onSave: (updatedMovie) {
-            Navigator.pop(context, updatedMovie);
-          },
         );
+
+        if (updatedMovie != null && mounted) {
+          Navigator.pop(context, updatedMovie);
+        }
       }
     } catch (e) {
       if (mounted) {

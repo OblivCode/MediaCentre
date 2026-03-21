@@ -145,14 +145,17 @@ class _MovieCard extends StatelessWidget {
   });
 
   Future<void> _showEditModal(BuildContext context) async {
-    await RatingModal.show(
+    final updatedMovie = await RatingModal.show(
       context: context,
       movie: movie,
       posterUrl: movie.posterUrl,
       synopsis: movie.synopsis,
       runtimeMinutes: movie.runtimeMinutes,
-      onSave: onEdit,
     );
+
+    if (updatedMovie != null) {
+      onEdit(updatedMovie);
+    }
   }
 
   @override

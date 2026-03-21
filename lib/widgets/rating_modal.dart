@@ -7,7 +7,6 @@ class RatingModal extends StatefulWidget {
   final String? posterUrl;
   final String? synopsis;
   final int? runtimeMinutes;
-  final ValueChanged<MovieBlock> onSave;
 
   const RatingModal({
     super.key,
@@ -15,18 +14,16 @@ class RatingModal extends StatefulWidget {
     this.posterUrl,
     this.synopsis,
     this.runtimeMinutes,
-    required this.onSave,
   });
 
-  static Future<void> show({
+  static Future<MovieBlock?> show({
     required BuildContext context,
     required MovieBlock movie,
     String? posterUrl,
     String? synopsis,
     int? runtimeMinutes,
-    required ValueChanged<MovieBlock> onSave,
   }) {
-    return showModalBottomSheet(
+    return showModalBottomSheet<MovieBlock>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -35,7 +32,6 @@ class RatingModal extends StatefulWidget {
         posterUrl: posterUrl,
         synopsis: synopsis,
         runtimeMinutes: runtimeMinutes,
-        onSave: onSave,
       ),
     );
   }
@@ -55,8 +51,7 @@ class _RatingModalState extends State<RatingModal> {
 
   void _save() {
     final updatedMovie = widget.movie.copyWith(userRating: _rating);
-    widget.onSave(updatedMovie);
-    Navigator.pop(context);
+    Navigator.pop(context, updatedMovie);
   }
 
   @override
