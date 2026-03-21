@@ -231,6 +231,75 @@ class VolumeManager extends ChangeNotifier {
     return parent.copyWith(children: updatedChildren);
   }
 
+  List<CollectionBlock> getAllCollections() {
+    final collections = <CollectionBlock>[];
+    _collectCollections(_library, collections);
+    return collections;
+  }
+
+  void _collectCollections(
+    CollectionBlock parent,
+    List<CollectionBlock> collections,
+  ) {
+    for (final child in parent.children) {
+      if (child is CollectionBlock) {
+        collections.add(child);
+        _collectCollections(child, collections);
+      }
+    }
+  }
+
+  Future<bool> moveMediaToCollection(String mediaId, String targetId) async {
+    if (_activeVolume == null) return false;
+
+    final media = _findMediaById(_library, mediaId);
+    if (media == null) return false;
+
+    var updatedLibrary = _removeMediaById(_library, mediaId);
+    updatedLibrary = _addMediaToCollection(updatedLibrary, media, targetId);
+
+    final success = await _activeVolume!.saveLibrary(updatedLibrary);
+
+    if (success) {
+      _library = updatedLibrary;
+      notifyListeners();
+    } else {
+      _error = 'Failed to move item';
+      notifyListeners();
+    }
+
+    return success;
+  }
+
+  MediaBlock? _findMediaById(CollectionBlock parent, String id) {
+    for (final child in parent.children) {
+      if (child.id == id) return child;
+      if (child is CollectionBlock) {
+        final found = _findMediaById(child, id);
+        if (found != null) return found;
+      }
+    }
+    return null;
+  }
+
+  CollectionBlock _addMediaToCollection(
+    CollectionBlock parent,
+    MediaBlock media,
+    String targetId,
+  ) {
+    if (parent.id == targetId) {
+      return parent.addChild(media);
+    }
+
+    final updatedChildren = parent.children.map((m) {
+      if (m is CollectionBlock) {
+        return _addMediaToCollection(m, media, targetId);
+      }
+      return m;
+    }).toList();
+    return parent.copyWith(children: updatedChildren);
+  }
+
   Future<bool> authenticateVolume(VolumeProvider volume) async {
     final success = await volume.authenticate();
     if (success) {

@@ -1,12 +1,21 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../models/collection_block.dart';
 import '../models/movie_block.dart';
+
+class RatingModalResult {
+  final MovieBlock movie;
+  final String? moveToCollectionId;
+
+  RatingModalResult({required this.movie, this.moveToCollectionId});
+}
 
 class RatingModal extends StatefulWidget {
   final MovieBlock movie;
   final String? posterUrl;
   final String? synopsis;
   final int? runtimeMinutes;
+  final List<CollectionBlock> collections;
 
   const RatingModal({
     super.key,
@@ -14,16 +23,18 @@ class RatingModal extends StatefulWidget {
     this.posterUrl,
     this.synopsis,
     this.runtimeMinutes,
+    this.collections = const [],
   });
 
-  static Future<MovieBlock?> show({
+  static Future<RatingModalResult?> show({
     required BuildContext context,
     required MovieBlock movie,
     String? posterUrl,
     String? synopsis,
     int? runtimeMinutes,
+    List<CollectionBlock> collections = const [],
   }) {
-    return showModalBottomSheet<MovieBlock>(
+    return showModalBottomSheet<RatingModalResult>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -32,6 +43,7 @@ class RatingModal extends StatefulWidget {
         posterUrl: posterUrl,
         synopsis: synopsis,
         runtimeMinutes: runtimeMinutes,
+        collections: collections,
       ),
     );
   }
@@ -42,6 +54,7 @@ class RatingModal extends StatefulWidget {
 
 class _RatingModalState extends State<RatingModal> {
   late int _rating;
+  String? _selectedCollectionId;
 
   @override
   void initState() {
@@ -51,7 +64,13 @@ class _RatingModalState extends State<RatingModal> {
 
   void _save() {
     final updatedMovie = widget.movie.copyWith(userRating: _rating);
-    Navigator.pop(context, updatedMovie);
+    Navigator.pop(
+      context,
+      RatingModalResult(
+        movie: updatedMovie,
+        moveToCollectionId: _selectedCollectionId,
+      ),
+    );
   }
 
   @override
@@ -157,6 +176,36 @@ class _RatingModalState extends State<RatingModal> {
                 });
               },
             ),
+            if (widget.collections.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const Text(
+                'Move to Collection',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _selectedCollectionId,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'Leave here',
+                ),
+                items: [
+                  const DropdownMenuItem(
+                      value: null, child: Text('Leave here')),
+                  ...widget.collections.map(
+                    (c) => DropdownMenuItem(value: c.id, child: Text(c.title)),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCollectionId = value;
+                  });
+                },
+              ),
+            ],
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,

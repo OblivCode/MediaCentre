@@ -101,7 +101,7 @@ class _AddMediaScreenState extends State<AddMediaScreen> {
           _isLoadingDetails = false;
         });
 
-        final updatedMovie = await RatingModal.show(
+        final result = await RatingModal.show(
           context: context,
           movie: movie,
           posterUrl: posterUrl,
@@ -109,8 +109,8 @@ class _AddMediaScreenState extends State<AddMediaScreen> {
           runtimeMinutes: details.runtime,
         );
 
-        if (updatedMovie != null && mounted) {
-          Navigator.pop(context, updatedMovie);
+        if (result != null && mounted) {
+          Navigator.pop(context, result.movie);
         }
       }
     } catch (e) {
@@ -174,8 +174,9 @@ class _AddMediaScreenState extends State<AddMediaScreen> {
                             child: Text(
                               'TMDB API key not configured.\nGo to Settings to add it.',
                               style: TextStyle(
-                                color:
-                                    Theme.of(context).colorScheme.onErrorContainer,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onErrorContainer,
                               ),
                             ),
                           ),
@@ -373,7 +374,8 @@ class _SearchResultTile extends StatelessWidget {
                         ],
                       ],
                     ),
-                    if (result.overview != null && result.overview!.isNotEmpty) ...[
+                    if (result.overview != null &&
+                        result.overview!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
                         result.overview!,

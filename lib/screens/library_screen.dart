@@ -128,6 +128,9 @@ class LibraryScreen extends StatelessWidget {
             movie: media,
             onDelete: () => manager.deleteMedia(media.id),
             onEdit: (updated) => manager.updateMedia(updated),
+            onMoveToCollection: (targetId) =>
+                manager.moveMediaToCollection(media.id, targetId),
+            collections: manager.getAllCollections(),
           );
         }
         if (media is CollectionBlock) {
@@ -191,24 +194,32 @@ class _MovieCard extends StatelessWidget {
   final MovieBlock movie;
   final VoidCallback onDelete;
   final ValueChanged<MovieBlock> onEdit;
+  final ValueChanged<String>? onMoveToCollection;
+  final List<CollectionBlock> collections;
 
   const _MovieCard({
     required this.movie,
     required this.onDelete,
     required this.onEdit,
+    this.onMoveToCollection,
+    this.collections = const [],
   });
 
   Future<void> _showEditModal(BuildContext context) async {
-    final updatedMovie = await RatingModal.show(
+    final result = await RatingModal.show(
       context: context,
       movie: movie,
       posterUrl: movie.posterUrl,
       synopsis: movie.synopsis,
       runtimeMinutes: movie.runtimeMinutes,
+      collections: collections,
     );
 
-    if (updatedMovie != null) {
-      onEdit(updatedMovie);
+    if (result != null) {
+      onEdit(result.movie);
+      if (result.moveToCollectionId != null && onMoveToCollection != null) {
+        onMoveToCollection!(result.moveToCollectionId!);
+      }
     }
   }
 
