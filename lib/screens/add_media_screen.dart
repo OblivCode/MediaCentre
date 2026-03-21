@@ -3,13 +3,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import '../models/movie_block.dart';
-import '../models/tv_show_block.dart';
+import '../models/models.dart';
 import '../services/tmdb_service.dart';
 import '../widgets/rating_modal.dart';
 
 class AddMediaScreen extends StatefulWidget {
-  const AddMediaScreen({super.key});
+  final int initialTab;
+
+  const AddMediaScreen({super.key, this.initialTab = 0});
 
   @override
   State<AddMediaScreen> createState() => _AddMediaScreenState();
@@ -32,7 +33,8 @@ class _AddMediaScreenState extends State<AddMediaScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController =
+        TabController(length: 2, vsync: this, initialIndex: widget.initialTab);
     _tabController.addListener(_onTabChanged);
   }
 
@@ -131,14 +133,14 @@ class _AddMediaScreenState extends State<AddMediaScreen>
 
         final modalResult = await RatingModal.show(
           context: context,
-          movie: movie,
+          media: movie,
           posterUrl: posterUrl,
           synopsis: details.overview,
           runtimeMinutes: details.runtime,
         );
 
         if (modalResult != null && mounted) {
-          Navigator.pop(context, modalResult.movie);
+          Navigator.pop(context, modalResult.media);
         }
       }
     } catch (e) {
@@ -165,6 +167,15 @@ class _AddMediaScreenState extends State<AddMediaScreen>
       final details = await _tmdbService.getTvShowDetails(result.id);
       final posterUrl = details.getFullPosterUrl(_tmdbService);
 
+      final seasons = details.seasons.map((s) {
+        return SeasonBlock(
+          id: const Uuid().v4(),
+          title: s.name,
+          seasonNumber: s.seasonNumber,
+          posterUrl: s.getFullPosterUrl(_tmdbService),
+        );
+      }).toList();
+
       final tvShow = TvShowBlock(
         id: const Uuid().v4(),
         title: details.name,
@@ -173,6 +184,7 @@ class _AddMediaScreenState extends State<AddMediaScreen>
         tmdbId: details.id,
         network: details.primaryNetwork,
         status: details.status,
+        children: seasons,
       );
 
       if (mounted) {

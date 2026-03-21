@@ -2,11 +2,15 @@ export 'media_block.dart';
 export 'movie_block.dart';
 export 'collection_block.dart';
 export 'tv_show_block.dart';
+export 'season_block.dart';
+export 'episode_block.dart';
 
 import 'media_block.dart';
 import 'movie_block.dart';
 import 'collection_block.dart';
 import 'tv_show_block.dart';
+import 'season_block.dart';
+import 'episode_block.dart';
 
 MediaBlock mediaBlockFromJson(Map<String, dynamic> json) {
   final type = json['type'] as String;
@@ -17,6 +21,10 @@ MediaBlock mediaBlockFromJson(Map<String, dynamic> json) {
       return CollectionBlock.fromJson(json);
     case 'tv_show':
       return TvShowBlock.fromJson(json);
+    case 'season':
+      return SeasonBlock.fromJson(json);
+    case 'episode':
+      return EpisodeBlock.fromJson(json);
     default:
       throw ArgumentError('Unknown media type: $type');
   }

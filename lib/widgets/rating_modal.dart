@@ -1,17 +1,20 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../models/collection_block.dart';
+import '../models/media_block.dart';
 import '../models/movie_block.dart';
+import '../models/tv_show_block.dart';
+import '../models/season_block.dart';
 
 class RatingModalResult {
-  final MovieBlock movie;
+  final MediaBlock media;
   final String? moveToCollectionId;
 
-  RatingModalResult({required this.movie, this.moveToCollectionId});
+  RatingModalResult({required this.media, this.moveToCollectionId});
 }
 
 class RatingModal extends StatefulWidget {
-  final MovieBlock movie;
+  final MediaBlock media;
   final String? posterUrl;
   final String? synopsis;
   final int? runtimeMinutes;
@@ -19,7 +22,7 @@ class RatingModal extends StatefulWidget {
 
   const RatingModal({
     super.key,
-    required this.movie,
+    required this.media,
     this.posterUrl,
     this.synopsis,
     this.runtimeMinutes,
@@ -28,7 +31,7 @@ class RatingModal extends StatefulWidget {
 
   static Future<RatingModalResult?> show({
     required BuildContext context,
-    required MovieBlock movie,
+    required MediaBlock media,
     String? posterUrl,
     String? synopsis,
     int? runtimeMinutes,
@@ -39,7 +42,7 @@ class RatingModal extends StatefulWidget {
       isScrollControlled: true,
       useSafeArea: true,
       builder: (context) => RatingModal(
-        movie: movie,
+        media: media,
         posterUrl: posterUrl,
         synopsis: synopsis,
         runtimeMinutes: runtimeMinutes,
@@ -59,25 +62,48 @@ class _RatingModalState extends State<RatingModal> {
   @override
   void initState() {
     super.initState();
-    _rating = widget.movie.userRating;
+    _rating = _getCurrentRating();
+  }
+
+  int _getCurrentRating() {
+    if (widget.media is MovieBlock) {
+      return (widget.media as MovieBlock).userRating;
+    } else if (widget.media is TvShowBlock) {
+      return (widget.media as TvShowBlock).userRating;
+    } else if (widget.media is SeasonBlock) {
+      return (widget.media as SeasonBlock).userRating;
+    }
+    return 0;
   }
 
   void _save() {
-    final updatedMovie = widget.movie.copyWith(userRating: _rating);
+    final updatedMedia = _updateMediaWithRating();
     Navigator.pop(
       context,
       RatingModalResult(
-        movie: updatedMovie,
+        media: updatedMedia,
         moveToCollectionId: _selectedCollectionId,
       ),
     );
   }
 
+  MediaBlock _updateMediaWithRating() {
+    if (widget.media is MovieBlock) {
+      return (widget.media as MovieBlock).copyWith(userRating: _rating);
+    } else if (widget.media is TvShowBlock) {
+      return (widget.media as TvShowBlock).copyWith(userRating: _rating);
+    } else if (widget.media is SeasonBlock) {
+      return (widget.media as SeasonBlock).copyWith(userRating: _rating);
+    }
+    return widget.media;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final posterUrl = widget.posterUrl ?? widget.movie.posterUrl;
-    final synopsis = widget.synopsis ?? widget.movie.synopsis;
-    final runtime = widget.runtimeMinutes ?? widget.movie.runtimeMinutes;
+    final posterUrl = _getPosterUrl();
+    final synopsis = _getSynopsis();
+    final runtime = _getRuntime();
+    final subtitle = _getSubtitle();
 
     return Padding(
       padding: EdgeInsets.only(
@@ -114,7 +140,7 @@ class _RatingModalState extends State<RatingModal> {
                         width: 80,
                         height: 120,
                         color: Colors.grey[300],
-                        child: const Icon(Icons.movie, size: 40),
+                        child: Icon(_getIcon(), size: 40),
                       ),
                     ),
                   ),
@@ -124,12 +150,22 @@ class _RatingModalState extends State<RatingModal> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.movie.title,
+                        widget.media.title,
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
                       if (runtime > 0) ...[
                         const SizedBox(height: 4),
                         Text(
@@ -176,6 +212,18 @@ class _RatingModalState extends State<RatingModal> {
                 });
               },
             ),
+            if (_shouldShowAverageRating()) ...[
+              const SizedBox(height: 16),
+              Center(
+                child: Text(
+                  'Average Episode Rating: ${_getAverageRating().toStringAsFixed(1)}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+            ],
             if (widget.collections.isNotEmpty) ...[
               const SizedBox(height: 24),
               const Text(
@@ -218,6 +266,72 @@ class _RatingModalState extends State<RatingModal> {
         ),
       ),
     );
+  }
+
+  String? _getPosterUrl() {
+    if (widget.posterUrl != null) return widget.posterUrl;
+    if (widget.media is MovieBlock) {
+      return (widget.media as MovieBlock).posterUrl;
+    } else if (widget.media is TvShowBlock) {
+      return (widget.media as TvShowBlock).posterUrl;
+    } else if (widget.media is SeasonBlock) {
+      return (widget.media as SeasonBlock).posterUrl;
+    }
+    return null;
+  }
+
+  String? _getSynopsis() {
+    if (widget.synopsis != null) return widget.synopsis;
+    if (widget.media is MovieBlock) {
+      return (widget.media as MovieBlock).synopsis;
+    } else if (widget.media is TvShowBlock) {
+      return (widget.media as TvShowBlock).synopsis;
+    }
+    return null;
+  }
+
+  int _getRuntime() {
+    if (widget.runtimeMinutes != null) return widget.runtimeMinutes!;
+    if (widget.media is MovieBlock) {
+      return (widget.media as MovieBlock).runtimeMinutes;
+    }
+    return 0;
+  }
+
+  String? _getSubtitle() {
+    if (widget.media is TvShowBlock) {
+      final tv = widget.media as TvShowBlock;
+      return tv.network;
+    } else if (widget.media is SeasonBlock) {
+      final season = widget.media as SeasonBlock;
+      return 'Season ${season.seasonNumber}';
+    }
+    return null;
+  }
+
+  IconData _getIcon() {
+    if (widget.media is TvShowBlock || widget.media is SeasonBlock) {
+      return Icons.tv;
+    }
+    return Icons.movie;
+  }
+
+  bool _shouldShowAverageRating() {
+    if (widget.media is TvShowBlock) {
+      return (widget.media as TvShowBlock).averageEpisodeRating > 0;
+    } else if (widget.media is SeasonBlock) {
+      return (widget.media as SeasonBlock).averageEpisodeRating > 0;
+    }
+    return false;
+  }
+
+  double _getAverageRating() {
+    if (widget.media is TvShowBlock) {
+      return (widget.media as TvShowBlock).averageEpisodeRating;
+    } else if (widget.media is SeasonBlock) {
+      return (widget.media as SeasonBlock).averageEpisodeRating;
+    }
+    return 0;
   }
 }
 

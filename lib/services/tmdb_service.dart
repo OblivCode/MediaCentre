@@ -1,17 +1,43 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+class _CacheEntry<T> {
+  final T data;
+  final DateTime expiresAt;
+
+  _CacheEntry(this.data, this.expiresAt);
+
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
+}
+
 class TmdbService {
   static const String _baseUrl = 'https://api.themoviedb.org/3';
   static const String _imageBaseUrl = 'https://image.tmdb.org/t/p/w500';
+  static const Duration _cacheDuration = Duration(hours: 24);
 
   String? _apiKey;
+
+  final Map<String, _CacheEntry<dynamic>> _cache = {};
 
   String? get apiKey => _apiKey;
   bool get isConfigured => _apiKey != null && _apiKey!.isNotEmpty;
 
   void setApiKey(String? key) {
     _apiKey = key;
+    _cache.clear();
+  }
+
+  T? _getFromCache<T>(String key) {
+    final entry = _cache[key];
+    if (entry != null && !entry.isExpired) {
+      return entry.data as T;
+    }
+    _cache.remove(key);
+    return null;
+  }
+
+  void _addToCache<T>(String key, T data) {
+    _cache[key] = _CacheEntry(data, DateTime.now().add(_cacheDuration));
   }
 
   String? getFullPosterUrl(String? posterPath) {
@@ -50,6 +76,10 @@ class TmdbService {
       throw Exception('TMDB API key not configured');
     }
 
+    final cacheKey = 'movie_$tmdbId';
+    final cached = _getFromCache<TmdbMovieDetails>(cacheKey);
+    if (cached != null) return cached;
+
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/movie/$tmdbId?api_key=$_apiKey'),
@@ -60,7 +90,9 @@ class TmdbService {
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return TmdbMovieDetails.fromJson(data);
+      final details = TmdbMovieDetails.fromJson(data);
+      _addToCache(cacheKey, details);
+      return details;
     } catch (e) {
       rethrow;
     }
@@ -107,6 +139,10 @@ class TmdbService {
       throw Exception('TMDB API key not configured');
     }
 
+    final cacheKey = 'tv_$tmdbId';
+    final cached = _getFromCache<TmdbTvDetails>(cacheKey);
+    if (cached != null) return cached;
+
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/tv/$tmdbId?api_key=$_apiKey'),
@@ -117,7 +153,36 @@ class TmdbService {
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return TmdbTvDetails.fromJson(data);
+      final details = TmdbTvDetails.fromJson(data);
+      _addToCache(cacheKey, details);
+      return details;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<TmdbSeasonDetails> getSeasonDetails(int tvId, int seasonNumber) async {
+    if (!isConfigured) {
+      throw Exception('TMDB API key not configured');
+    }
+
+    final cacheKey = 'tv_${tvId}_season_$seasonNumber';
+    final cached = _getFromCache<TmdbSeasonDetails>(cacheKey);
+    if (cached != null) return cached;
+
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/tv/$tvId/season/$seasonNumber?api_key=$_apiKey'),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('TMDB API error: ${response.statusCode}');
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final details = TmdbSeasonDetails.fromJson(data);
+      _addToCache(cacheKey, details);
+      return details;
     } catch (e) {
       rethrow;
     }
@@ -253,6 +318,7 @@ class TmdbTvDetails {
   final double? voteAverage;
   final String? status;
   final List<String> networks;
+  final List<TmdbSeasonInfo> seasons;
 
   TmdbTvDetails({
     required this.id,
@@ -263,12 +329,19 @@ class TmdbTvDetails {
     this.voteAverage,
     this.status,
     this.networks = const [],
+    this.seasons = const [],
   });
 
   factory TmdbTvDetails.fromJson(Map<String, dynamic> json) {
     final networkList = json['networks'] as List<dynamic>? ?? [];
     final networks =
         networkList.map((n) => n['name'] as String? ?? '').toList();
+
+    final seasonList = json['seasons'] as List<dynamic>? ?? [];
+    final seasons = seasonList
+        .map((s) => TmdbSeasonInfo.fromJson(s as Map<String, dynamic>))
+        .where((s) => s.seasonNumber > 0)
+        .toList();
 
     return TmdbTvDetails(
       id: json['id'] as int,
@@ -279,6 +352,7 @@ class TmdbTvDetails {
       voteAverage: (json['vote_average'] as num?)?.toDouble(),
       status: json['status'] as String?,
       networks: networks,
+      seasons: seasons,
     );
   }
 
@@ -287,4 +361,104 @@ class TmdbTvDetails {
   }
 
   String? get primaryNetwork => networks.isNotEmpty ? networks.first : null;
+}
+
+class TmdbSeasonInfo {
+  final int id;
+  final int seasonNumber;
+  final String name;
+  final String? posterPath;
+  final int episodeCount;
+  final String? overview;
+
+  TmdbSeasonInfo({
+    required this.id,
+    required this.seasonNumber,
+    required this.name,
+    this.posterPath,
+    this.episodeCount = 0,
+    this.overview,
+  });
+
+  factory TmdbSeasonInfo.fromJson(Map<String, dynamic> json) {
+    return TmdbSeasonInfo(
+      id: json['id'] as int,
+      seasonNumber: json['season_number'] as int? ?? 0,
+      name: json['name'] as String? ?? 'Unknown',
+      posterPath: json['poster_path'] as String?,
+      episodeCount: json['episode_count'] as int? ?? 0,
+      overview: json['overview'] as String?,
+    );
+  }
+
+  String? getFullPosterUrl(TmdbService service) {
+    return service.getFullPosterUrl(posterPath);
+  }
+}
+
+class TmdbSeasonDetails {
+  final int id;
+  final int seasonNumber;
+  final String name;
+  final String? posterPath;
+  final String? overview;
+  final List<TmdbEpisodeInfo> episodes;
+
+  TmdbSeasonDetails({
+    required this.id,
+    required this.seasonNumber,
+    required this.name,
+    this.posterPath,
+    this.overview,
+    this.episodes = const [],
+  });
+
+  factory TmdbSeasonDetails.fromJson(Map<String, dynamic> json) {
+    final episodeList = json['episodes'] as List<dynamic>? ?? [];
+    final episodes = episodeList
+        .map((e) => TmdbEpisodeInfo.fromJson(e as Map<String, dynamic>))
+        .toList();
+
+    return TmdbSeasonDetails(
+      id: json['id'] as int,
+      seasonNumber: json['season_number'] as int? ?? 0,
+      name: json['name'] as String? ?? 'Unknown',
+      posterPath: json['poster_path'] as String?,
+      overview: json['overview'] as String?,
+      episodes: episodes,
+    );
+  }
+
+  String? getFullPosterUrl(TmdbService service) {
+    return service.getFullPosterUrl(posterPath);
+  }
+}
+
+class TmdbEpisodeInfo {
+  final int id;
+  final int episodeNumber;
+  final String name;
+  final String? overview;
+  final int? runtime;
+  final double? voteAverage;
+
+  TmdbEpisodeInfo({
+    required this.id,
+    required this.episodeNumber,
+    required this.name,
+    this.overview,
+    this.runtime,
+    this.voteAverage,
+  });
+
+  factory TmdbEpisodeInfo.fromJson(Map<String, dynamic> json) {
+    return TmdbEpisodeInfo(
+      id: json['id'] as int,
+      episodeNumber: json['episode_number'] as int? ?? 0,
+      name: json['name'] as String? ?? 'Unknown',
+      overview: json['overview'] as String?,
+      runtime: json['runtime'] as int?,
+      voteAverage: (json['vote_average'] as num?)?.toDouble(),
+    );
+  }
 }

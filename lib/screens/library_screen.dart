@@ -1,9 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/collection_block.dart';
+import '../models/media_block.dart';
 import '../models/movie_block.dart';
 import '../models/tv_show_block.dart';
+import '../models/season_block.dart';
 import '../services/volume_manager.dart';
 import '../widgets/add_media_menu.dart';
 import '../widgets/collection_card.dart';
@@ -137,8 +140,23 @@ class LibraryScreen extends StatelessWidget {
         if (media is TvShowBlock) {
           return _TvShowCard(
             tvShow: media,
-            onTap: () => _navigateToCollection(context, media),
+            onNavigate: () => _navigateToCollection(context, media),
+            onEdit: (updated) => manager.updateMedia(updated),
             onDelete: () => manager.deleteMedia(media.id),
+            onMoveToCollection: (targetId) =>
+                manager.moveMediaToCollection(media.id, targetId),
+            collections: manager.getAllCollections(),
+          );
+        }
+        if (media is SeasonBlock) {
+          return _SeasonCard(
+            season: media,
+            onNavigate: () => _navigateToCollection(context, media),
+            onEdit: (updated) => manager.updateMedia(updated),
+            onDelete: () => manager.deleteMedia(media.id),
+            onMoveToCollection: (targetId) =>
+                manager.moveMediaToCollection(media.id, targetId),
+            collections: manager.getAllCollections(),
           );
         }
         if (media is CollectionBlock) {
@@ -173,20 +191,38 @@ class LibraryScreen extends StatelessWidget {
 
     switch (choice) {
       case AddMediaType.movie:
-        final result = await Navigator.push<MovieBlock>(
+        final result = await Navigator.push<MediaBlock>(
           context,
-          MaterialPageRoute(builder: (context) => const AddMediaScreen()),
+          MaterialPageRoute(
+              builder: (context) => const AddMediaScreen(initialTab: 0)),
         );
-        if (result != null) {
-          manager.addMovie(result);
+        if (result != null && result is MovieBlock) {
+          try {
+            await manager.addMovie(result);
+          } on DuplicateMediaException catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(e.message)),
+              );
+            }
+          }
         }
       case AddMediaType.tvShow:
-        final result = await Navigator.push<TvShowBlock>(
+        final result = await Navigator.push<MediaBlock>(
           context,
-          MaterialPageRoute(builder: (context) => const AddMediaScreen()),
+          MaterialPageRoute(
+              builder: (context) => const AddMediaScreen(initialTab: 1)),
         );
-        if (result != null) {
-          manager.addTvShow(result);
+        if (result != null && result is TvShowBlock) {
+          try {
+            await manager.addTvShow(result);
+          } on DuplicateMediaException catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(e.message)),
+              );
+            }
+          }
         }
       case AddMediaType.collection:
         final result = await Navigator.push<CollectionBlock>(
@@ -205,7 +241,7 @@ class LibraryScreen extends StatelessWidget {
 class _MovieCard extends StatelessWidget {
   final MovieBlock movie;
   final VoidCallback onDelete;
-  final ValueChanged<MovieBlock> onEdit;
+  final ValueChanged<MediaBlock> onEdit;
   final ValueChanged<String>? onMoveToCollection;
   final List<CollectionBlock> collections;
 
@@ -220,7 +256,7 @@ class _MovieCard extends StatelessWidget {
   Future<void> _showEditModal(BuildContext context) async {
     final result = await RatingModal.show(
       context: context,
-      movie: movie,
+      media: movie,
       posterUrl: movie.posterUrl,
       synopsis: movie.synopsis,
       runtimeMinutes: movie.runtimeMinutes,
@@ -228,7 +264,7 @@ class _MovieCard extends StatelessWidget {
     );
 
     if (result != null) {
-      onEdit(result.movie);
+      onEdit(result.media);
       if (result.moveToCollectionId != null && onMoveToCollection != null) {
         onMoveToCollection!(result.moveToCollectionId!);
       }
@@ -255,6 +291,9 @@ class _MovieCard extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: InkWell(
           onTap: () => _showEditModal(context),
+          onLongPress: () {
+            HapticFeedback.mediumImpact();
+          },
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.all(12),
@@ -353,14 +392,37 @@ class _StarRating extends StatelessWidget {
 
 class _TvShowCard extends StatelessWidget {
   final TvShowBlock tvShow;
-  final VoidCallback onTap;
+  final VoidCallback onNavigate;
+  final ValueChanged<MediaBlock> onEdit;
   final VoidCallback onDelete;
+  final ValueChanged<String>? onMoveToCollection;
+  final List<CollectionBlock> collections;
 
   const _TvShowCard({
     required this.tvShow,
-    required this.onTap,
+    required this.onNavigate,
+    required this.onEdit,
     required this.onDelete,
+    this.onMoveToCollection,
+    this.collections = const [],
   });
+
+  Future<void> _showEditModal(BuildContext context) async {
+    final result = await RatingModal.show(
+      context: context,
+      media: tvShow,
+      posterUrl: tvShow.posterUrl,
+      synopsis: tvShow.synopsis,
+      collections: collections,
+    );
+
+    if (result != null) {
+      onEdit(result.media);
+      if (result.moveToCollectionId != null && onMoveToCollection != null) {
+        onMoveToCollection!(result.moveToCollectionId!);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -381,7 +443,11 @@ class _TvShowCard extends StatelessWidget {
       child: Card(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: InkWell(
-          onTap: onTap,
+          onTap: () => _showEditModal(context),
+          onLongPress: () {
+            HapticFeedback.mediumImpact();
+            onNavigate();
+          },
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.all(12),
@@ -441,28 +507,169 @@ class _TvShowCard extends StatelessWidget {
                           ),
                         ),
                       const SizedBox(height: 4),
-                      if (tvShow.status != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: tvShow.status == 'Ended'
-                                ? Colors.grey[300]
-                                : Colors.green[100],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            tvShow.status!,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: tvShow.status == 'Ended'
-                                  ? Colors.grey[700]
-                                  : Colors.green[800],
+                      Row(
+                        children: [
+                          if (tvShow.userRating > 0) ...[
+                            _StarRating(rating: tvShow.userRating),
+                            const SizedBox(width: 8),
+                          ],
+                          if (tvShow.status != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: tvShow.status == 'Ended'
+                                    ? Colors.grey[300]
+                                    : Colors.green[100],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                tvShow.status!,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: tvShow.status == 'Ended'
+                                      ? Colors.grey[700]
+                                      : Colors.green[800],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: Colors.grey[400],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SeasonCard extends StatelessWidget {
+  final SeasonBlock season;
+  final VoidCallback onNavigate;
+  final ValueChanged<MediaBlock> onEdit;
+  final VoidCallback onDelete;
+  final ValueChanged<String>? onMoveToCollection;
+  final List<CollectionBlock> collections;
+
+  const _SeasonCard({
+    required this.season,
+    required this.onNavigate,
+    required this.onEdit,
+    required this.onDelete,
+    this.onMoveToCollection,
+    this.collections = const [],
+  });
+
+  Future<void> _showEditModal(BuildContext context) async {
+    final result = await RatingModal.show(
+      context: context,
+      media: season,
+      posterUrl: season.posterUrl,
+      collections: collections,
+    );
+
+    if (result != null) {
+      onEdit(result.media);
+      if (result.moveToCollectionId != null && onMoveToCollection != null) {
+        onMoveToCollection!(result.moveToCollectionId!);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: Key(season.id),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => onDelete(),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      child: Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: InkWell(
+          onTap: () => _showEditModal(context),
+          onLongPress: () {
+            HapticFeedback.mediumImpact();
+            onNavigate();
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: season.posterUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: season.posterUrl!,
+                          width: 70,
+                          height: 105,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Container(
+                            width: 70,
+                            height: 105,
+                            color: Colors.grey[300],
+                            child: const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           ),
+                          errorWidget: (_, __, ___) => Container(
+                            width: 70,
+                            height: 105,
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.video_library, size: 32),
+                          ),
+                        )
+                      : Container(
+                          width: 70,
+                          height: 105,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.video_library, size: 32),
                         ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        season.title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Season ${season.seasonNumber}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (season.userRating > 0)
+                        _StarRating(rating: season.userRating),
                     ],
                   ),
                 ),

@@ -1,22 +1,36 @@
 import 'models.dart';
 
 class TvShowBlock extends CollectionBlock {
-  final String? network;
-  final String? status;
   final String? posterUrl;
   final String? synopsis;
   final int? tmdbId;
+  final String? network;
+  final String? status;
+  final int userRating;
 
   TvShowBlock({
     required super.id,
     required super.title,
     super.children,
-    this.network,
-    this.status,
     this.posterUrl,
     this.synopsis,
     this.tmdbId,
+    this.network,
+    this.status,
+    this.userRating = 0,
   });
+
+  double get averageEpisodeRating {
+    final ratings = <int>[];
+    for (final child in children) {
+      if (child is SeasonBlock) {
+        final seasonRating = child.averageEpisodeRating;
+        if (seasonRating > 0) ratings.add(seasonRating.round());
+      }
+    }
+    if (ratings.isEmpty) return 0;
+    return ratings.reduce((a, b) => a + b) / ratings.length;
+  }
 
   @override
   Map<String, dynamic> toJson() => {
@@ -24,11 +38,12 @@ class TvShowBlock extends CollectionBlock {
         'id': id,
         'title': title,
         'children': children.map((c) => c.toJson()).toList(),
-        'network': network,
-        'status': status,
         'posterUrl': posterUrl,
         'synopsis': synopsis,
         'tmdbId': tmdbId,
+        'network': network,
+        'status': status,
+        'userRating': userRating,
       };
 
   factory TvShowBlock.fromJson(Map<String, dynamic> json) {
@@ -41,11 +56,12 @@ class TvShowBlock extends CollectionBlock {
       id: json['id'] as String,
       title: json['title'] as String,
       children: children,
-      network: json['network'] as String?,
-      status: json['status'] as String?,
       posterUrl: json['posterUrl'] as String?,
       synopsis: json['synopsis'] as String?,
       tmdbId: json['tmdbId'] as int?,
+      network: json['network'] as String?,
+      status: json['status'] as String?,
+      userRating: json['userRating'] as int? ?? 0,
     );
   }
 
@@ -54,21 +70,23 @@ class TvShowBlock extends CollectionBlock {
     String? id,
     String? title,
     List<MediaBlock>? children,
-    String? network,
-    String? status,
     String? posterUrl,
     String? synopsis,
     int? tmdbId,
+    String? network,
+    String? status,
+    int? userRating,
   }) {
     return TvShowBlock(
       id: id ?? this.id,
       title: title ?? this.title,
       children: children ?? this.children,
-      network: network ?? this.network,
-      status: status ?? this.status,
       posterUrl: posterUrl ?? this.posterUrl,
       synopsis: synopsis ?? this.synopsis,
       tmdbId: tmdbId ?? this.tmdbId,
+      network: network ?? this.network,
+      status: status ?? this.status,
+      userRating: userRating ?? this.userRating,
     );
   }
 }
