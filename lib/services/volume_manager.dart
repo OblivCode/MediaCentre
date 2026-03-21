@@ -8,6 +8,14 @@ import 'volume_provider.dart';
 import 'volumes/local_volume.dart';
 import 'volumes/drive_volume.dart';
 
+class DuplicateMediaException implements Exception {
+  final String message;
+  DuplicateMediaException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 class VolumeManager extends ChangeNotifier {
   static const String _volumePreferenceKey = 'selected_volume_id';
 
@@ -103,6 +111,10 @@ class VolumeManager extends ChangeNotifier {
   Future<bool> addMovie(MovieBlock movie) async {
     if (_activeVolume == null) return false;
 
+    if (_checkForDuplicate(movie.tmdbId, 'movie')) {
+      throw DuplicateMediaException('This movie is already in your library');
+    }
+
     final updatedLibrary = _library.addChild(movie);
     final success = await _activeVolume!.saveLibrary(updatedLibrary);
 
@@ -136,6 +148,10 @@ class VolumeManager extends ChangeNotifier {
 
   Future<bool> addTvShow(TvShowBlock tvShow) async {
     if (_activeVolume == null) return false;
+
+    if (_checkForDuplicate(tvShow.tmdbId, 'tv_show')) {
+      throw DuplicateMediaException('This TV show is already in your library');
+    }
 
     final updatedLibrary = _library.addChild(tvShow);
     final success = await _activeVolume!.saveLibrary(updatedLibrary);
@@ -267,6 +283,24 @@ class VolumeManager extends ChangeNotifier {
     }
   }
 
+  bool _checkForDuplicate(int? tmdbId, String? type) {
+    if (tmdbId == null) return false;
+    return _findTmdbId(_library, tmdbId, type);
+  }
+
+  bool _findTmdbId(CollectionBlock parent, int tmdbId, String? type) {
+    for (final child in parent.children) {
+      if (child is MovieBlock && type == 'movie') {
+        if (child.tmdbId == tmdbId) return true;
+      } else if (child is TvShowBlock && type == 'tv_show') {
+        if (child.tmdbId == tmdbId) return true;
+      } else if (child is CollectionBlock) {
+        if (_findTmdbId(child, tmdbId, type)) return true;
+      }
+    }
+    return false;
+  }
+
   Future<bool> moveMediaToCollection(String mediaId, String targetId) async {
     if (_activeVolume == null) return false;
 
@@ -322,8 +356,8 @@ class VolumeManager extends ChangeNotifier {
     final success = await volume.authenticate();
     if (success) {
       notifyListeners();
-    }
-    return success;
+  }
+  return success;
   }
 
   Future<void> signOutVolume(VolumeProvider volume) async {
