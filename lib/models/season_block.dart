@@ -9,6 +9,7 @@ class SeasonBlock extends MediaBlock {
   SeasonBlock({
     required super.id,
     required super.title,
+    super.dateAdded,
     this.seasonNumber = 0,
     this.posterUrl,
     this.userRating = 0,
@@ -28,6 +29,7 @@ class SeasonBlock extends MediaBlock {
         'type': 'season',
         'id': id,
         'title': title,
+        'dateAdded': dateAdded.toIso8601String(),
         'seasonNumber': seasonNumber,
         'posterUrl': posterUrl,
         'userRating': userRating,
@@ -43,6 +45,8 @@ class SeasonBlock extends MediaBlock {
     return SeasonBlock(
       id: json['id'] as String,
       title: json['title'] as String,
+      dateAdded: DateTime.tryParse(json['dateAdded'] as String? ?? '') ??
+          DateTime.now(),
       seasonNumber: json['seasonNumber'] as int? ?? 0,
       posterUrl: json['posterUrl'] as String?,
       userRating: json['userRating'] as int? ?? 0,
@@ -53,6 +57,7 @@ class SeasonBlock extends MediaBlock {
   SeasonBlock copyWith({
     String? id,
     String? title,
+    DateTime? dateAdded,
     int? seasonNumber,
     String? posterUrl,
     int? userRating,
@@ -61,6 +66,7 @@ class SeasonBlock extends MediaBlock {
     return SeasonBlock(
       id: id ?? this.id,
       title: title ?? this.title,
+      dateAdded: dateAdded ?? this.dateAdded,
       seasonNumber: seasonNumber ?? this.seasonNumber,
       posterUrl: posterUrl ?? this.posterUrl,
       userRating: userRating ?? this.userRating,

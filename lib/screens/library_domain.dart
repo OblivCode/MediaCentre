@@ -4,3 +4,9 @@ enum LibraryDomain {
   listen,
   collections,
 }
+
+enum LibrarySort {
+  recentlyAdded,
+  oldestAdded,
+  title,
+}

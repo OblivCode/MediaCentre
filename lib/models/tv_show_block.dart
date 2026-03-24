@@ -12,6 +12,7 @@ class TvShowBlock extends MediaBlock {
   TvShowBlock({
     required super.id,
     required super.title,
+    super.dateAdded,
     this.posterUrl,
     this.synopsis,
     this.tmdbId,
@@ -36,6 +37,7 @@ class TvShowBlock extends MediaBlock {
         'type': 'tv_show',
         'id': id,
         'title': title,
+        'dateAdded': dateAdded.toIso8601String(),
         'posterUrl': posterUrl,
         'synopsis': synopsis,
         'tmdbId': tmdbId,
@@ -54,6 +56,8 @@ class TvShowBlock extends MediaBlock {
     return TvShowBlock(
       id: json['id'] as String,
       title: json['title'] as String,
+      dateAdded: DateTime.tryParse(json['dateAdded'] as String? ?? '') ??
+          DateTime.now(),
       posterUrl: json['posterUrl'] as String?,
       synopsis: json['synopsis'] as String?,
       tmdbId: json['tmdbId'] as int?,
@@ -67,6 +71,7 @@ class TvShowBlock extends MediaBlock {
   TvShowBlock copyWith({
     String? id,
     String? title,
+    DateTime? dateAdded,
     String? posterUrl,
     String? synopsis,
     int? tmdbId,
@@ -78,6 +83,7 @@ class TvShowBlock extends MediaBlock {
     return TvShowBlock(
       id: id ?? this.id,
       title: title ?? this.title,
+      dateAdded: dateAdded ?? this.dateAdded,
       posterUrl: posterUrl ?? this.posterUrl,
       synopsis: synopsis ?? this.synopsis,
       tmdbId: tmdbId ?? this.tmdbId,

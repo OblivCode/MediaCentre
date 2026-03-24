@@ -11,6 +11,7 @@ import '../models/movie_block.dart';
 import '../models/tv_show_block.dart';
 import '../services/volume_manager.dart';
 import '../widgets/add_media_menu.dart';
+import '../widgets/listening_modal.dart';
 import '../widgets/reading_modal.dart';
 import '../widgets/collection_card.dart';
 import '../widgets/rating_modal.dart';
@@ -25,9 +26,15 @@ enum _CardAction { edit, move, delete }
 class LibraryScreen extends StatelessWidget {
   final CollectionBlock? collection;
   final LibraryDomain domain;
+  final LibrarySort sort;
+  final ValueChanged<LibrarySort>? onSortChanged;
 
   const LibraryScreen(
-      {super.key, this.collection, this.domain = LibraryDomain.watch});
+      {super.key,
+      this.collection,
+      this.domain = LibraryDomain.watch,
+      this.sort = LibrarySort.recentlyAdded,
+      this.onSortChanged});
 
   CollectionBlock _getCurrentLibrary(VolumeManager manager) =>
       collection ?? manager.library;
@@ -56,6 +63,25 @@ class LibraryScreen extends StatelessWidget {
             ),
             backgroundColor: Theme.of(context).colorScheme.inversePrimary,
             actions: [
+              if (collection == null)
+                PopupMenuButton<LibrarySort>(
+                  icon: const Icon(Icons.sort),
+                  onSelected: onSortChanged ?? (_) {},
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: LibrarySort.recentlyAdded,
+                      child: Text('Recently added'),
+                    ),
+                    PopupMenuItem(
+                      value: LibrarySort.oldestAdded,
+                      child: Text('Oldest added'),
+                    ),
+                    PopupMenuItem(
+                      value: LibrarySort.title,
+                      child: Text('Title'),
+                    ),
+                  ],
+                ),
               if (collection == null)
                 IconButton(
                   icon: const Icon(Icons.settings),
@@ -121,64 +147,95 @@ class LibraryScreen extends StatelessWidget {
 
     final items =
         collection == null ? _rootItems(manager) : currentLibrary.children;
+    final sortedItems = _sortItems(items);
 
-    if (items.isEmpty) {
-      return Center(
-        child: Text(
-          collection == null
-              ? _emptyStateText()
-              : 'This collection is empty.\nTap + to add items.',
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 16, color: Colors.grey),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final media = items[index];
-        if (media is MovieBlock) {
-          return _MovieCard(
-            movie: media,
-            onDelete: () => manager.deleteMedia(media.id),
-            onEdit: (updated) => manager.updateMedia(updated),
-            onMoveToCollection: (targetId) =>
-                manager.moveMediaToCollection(media.id, targetId),
-            collections: manager.rootCollections,
+    return RefreshIndicator(
+      onRefresh: manager.loadLibrary,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: sortedItems.isEmpty ? 1 : sortedItems.length,
+        itemBuilder: (context, index) {
+          if (sortedItems.isEmpty) {
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.7,
+              child: Center(
+                child: Text(
+                  collection == null
+                      ? _emptyStateText()
+                      : 'This collection is empty.\nTap + to add items.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              ),
+            );
+          }
+          final media = sortedItems[index];
+          if (media is MovieBlock) {
+            return _MovieCard(
+              movie: media,
+              onDelete: () => manager.deleteMedia(media.id),
+              onEdit: (updated) => manager.updateMedia(updated),
+              onMoveToCollection: (targetId) =>
+                  manager.moveMediaToCollection(media.id, targetId),
+              collections: manager.rootCollections,
+            );
+          }
+          if (media is TvShowBlock) {
+            return _TvShowCard(
+              tvShow: media,
+              onNavigate: () => _navigateToTvShow(context, media),
+              onEdit: (updated) => manager.updateMedia(updated),
+              onDelete: () => manager.deleteMedia(media.id),
+              onMoveToCollection: (targetId) =>
+                  manager.moveMediaToCollection(media.id, targetId),
+              collections: manager.rootCollections,
+            );
+          }
+          if (media is CollectionBlock) {
+            return CollectionCard(
+              collection: media,
+              onTap: () => _navigateToCollection(context, media),
+              onDelete: () => manager.deleteMedia(media.id),
+            );
+          }
+          if (media is BookBlock || media is ComicBookBlock) {
+            return _ReadingCard(
+              media: media,
+              onEdit: (updated) => manager.updateMedia(updated),
+            );
+          }
+          if (media is AlbumBlock) {
+            return _AlbumCard(
+              album: media,
+              onEdit: (updated) => manager.updateAlbum(updated),
+              onDelete: () => manager.deleteMedia(media.id),
+            );
+          }
+          return ListTile(
+            title: Text(media.title),
+            subtitle: const Text('Unknown type'),
           );
-        }
-        if (media is TvShowBlock) {
-          return _TvShowCard(
-            tvShow: media,
-            onNavigate: () => _navigateToTvShow(context, media),
-            onEdit: (updated) => manager.updateMedia(updated),
-            onDelete: () => manager.deleteMedia(media.id),
-            onMoveToCollection: (targetId) =>
-                manager.moveMediaToCollection(media.id, targetId),
-            collections: manager.rootCollections,
-          );
-        }
-        if (media is CollectionBlock) {
-          return CollectionCard(
-            collection: media,
-            onTap: () => _navigateToCollection(context, media),
-            onDelete: () => manager.deleteMedia(media.id),
-          );
-        }
-        if (media is BookBlock || media is ComicBookBlock) {
-          return _ReadingCard(
-            media: media,
-            onEdit: (updated) => manager.updateMedia(updated),
-          );
-        }
-        return ListTile(
-          title: Text(media.title),
-          subtitle: const Text('Unknown type'),
-        );
-      },
+        },
+      ),
     );
+  }
+
+  List<MediaBlock> _sortItems(List<MediaBlock> items) {
+    final sorted = [...items];
+    switch (sort) {
+      case LibrarySort.recentlyAdded:
+        sorted.sort((a, b) => b.dateAdded.compareTo(a.dateAdded));
+        break;
+      case LibrarySort.oldestAdded:
+        sorted.sort((a, b) => a.dateAdded.compareTo(b.dateAdded));
+        break;
+      case LibrarySort.title:
+        sorted.sort(
+            (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        break;
+    }
+    return sorted;
   }
 
   List<MediaBlock> _rootItems(VolumeManager manager) {
@@ -335,6 +392,78 @@ class _ReadingCard extends StatelessWidget {
           maxValue > 0 ? '$progress / $maxValue' : '$progress',
         ),
         trailing: const Icon(Icons.chevron_right),
+      ),
+    );
+  }
+}
+
+class _AlbumCard extends StatelessWidget {
+  final AlbumBlock album;
+  final ValueChanged<AlbumBlock> onEdit;
+  final VoidCallback onDelete;
+
+  const _AlbumCard({
+    required this.album,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  Future<void> _showEditModal(BuildContext context) async {
+    final result = await ListeningModal.show(context: context, media: album);
+    if (result != null) {
+      onEdit(result.media);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: Key(album.id),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => onDelete(),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      child: Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: ListTile(
+          onTap: () => _showEditModal(context),
+          title: Text(album.title),
+          subtitle: Text(
+            [
+              if (album.artist != null && album.artist!.isNotEmpty)
+                album.artist!,
+              if (album.trackCount > 0) '${album.trackCount} tracks',
+              if (album.listenCount > 0) '${album.listenCount} listens',
+            ].join(' • '),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (album.userRating > 0)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(
+                    5,
+                    (index) => Icon(
+                      index < album.userRating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: Colors.grey[400]),
+            ],
+          ),
+        ),
       ),
     );
   }

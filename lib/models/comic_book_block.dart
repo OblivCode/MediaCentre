@@ -11,6 +11,7 @@ class ComicBookBlock extends MediaBlock {
   ComicBookBlock({
     required super.id,
     required super.title,
+    super.dateAdded,
     this.author,
     this.chapterCount = 0,
     this.currentChapter = 0,
@@ -24,6 +25,7 @@ class ComicBookBlock extends MediaBlock {
         'type': 'comic_book',
         'id': id,
         'title': title,
+        'dateAdded': dateAdded.toIso8601String(),
         'author': author,
         'chapterCount': chapterCount,
         'currentChapter': currentChapter,
@@ -36,6 +38,8 @@ class ComicBookBlock extends MediaBlock {
     return ComicBookBlock(
       id: json['id'] as String,
       title: json['title'] as String,
+      dateAdded: DateTime.tryParse(json['dateAdded'] as String? ?? '') ??
+          DateTime.now(),
       author: json['author'] as String?,
       chapterCount: json['chapterCount'] as int? ?? 0,
       currentChapter: json['currentChapter'] as int? ?? 0,
@@ -48,6 +52,7 @@ class ComicBookBlock extends MediaBlock {
   ComicBookBlock copyWith({
     String? id,
     String? title,
+    DateTime? dateAdded,
     String? author,
     int? chapterCount,
     int? currentChapter,
@@ -58,6 +63,7 @@ class ComicBookBlock extends MediaBlock {
     return ComicBookBlock(
       id: id ?? this.id,
       title: title ?? this.title,
+      dateAdded: dateAdded ?? this.dateAdded,
       author: author ?? this.author,
       chapterCount: chapterCount ?? this.chapterCount,
       currentChapter: currentChapter ?? this.currentChapter,

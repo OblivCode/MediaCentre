@@ -10,6 +10,7 @@ class MovieBlock extends MediaBlock {
   MovieBlock({
     required super.id,
     required super.title,
+    super.dateAdded,
     this.runtimeMinutes = 0,
     this.userRating = 0,
     this.posterUrl,
@@ -22,6 +23,7 @@ class MovieBlock extends MediaBlock {
         'type': 'movie',
         'id': id,
         'title': title,
+        'dateAdded': dateAdded.toIso8601String(),
         'runtimeMinutes': runtimeMinutes,
         'userRating': userRating,
         'posterUrl': posterUrl,
@@ -33,6 +35,8 @@ class MovieBlock extends MediaBlock {
     return MovieBlock(
       id: json['id'] as String,
       title: json['title'] as String,
+      dateAdded: DateTime.tryParse(json['dateAdded'] as String? ?? '') ??
+          DateTime.now(),
       runtimeMinutes: json['runtimeMinutes'] as int? ?? 0,
       userRating: json['userRating'] as int? ?? 0,
       posterUrl: json['posterUrl'] as String?,
@@ -44,6 +48,7 @@ class MovieBlock extends MediaBlock {
   MovieBlock copyWith({
     String? id,
     String? title,
+    DateTime? dateAdded,
     int? runtimeMinutes,
     int? userRating,
     String? posterUrl,
@@ -53,6 +58,7 @@ class MovieBlock extends MediaBlock {
     return MovieBlock(
       id: id ?? this.id,
       title: title ?? this.title,
+      dateAdded: dateAdded ?? this.dateAdded,
       runtimeMinutes: runtimeMinutes ?? this.runtimeMinutes,
       userRating: userRating ?? this.userRating,
       posterUrl: posterUrl ?? this.posterUrl,

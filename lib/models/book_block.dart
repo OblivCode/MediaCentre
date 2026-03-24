@@ -12,6 +12,7 @@ class BookBlock extends MediaBlock {
   BookBlock({
     required super.id,
     required super.title,
+    super.dateAdded,
     this.author,
     this.pageCount = 0,
     this.currentPage = 0,
@@ -26,6 +27,7 @@ class BookBlock extends MediaBlock {
         'type': 'book',
         'id': id,
         'title': title,
+        'dateAdded': dateAdded.toIso8601String(),
         'author': author,
         'pageCount': pageCount,
         'currentPage': currentPage,
@@ -39,6 +41,8 @@ class BookBlock extends MediaBlock {
     return BookBlock(
       id: json['id'] as String,
       title: json['title'] as String,
+      dateAdded: DateTime.tryParse(json['dateAdded'] as String? ?? '') ??
+          DateTime.now(),
       author: json['author'] as String?,
       pageCount: json['pageCount'] as int? ?? 0,
       currentPage: json['currentPage'] as int? ?? 0,
@@ -52,6 +56,7 @@ class BookBlock extends MediaBlock {
   BookBlock copyWith({
     String? id,
     String? title,
+    DateTime? dateAdded,
     String? author,
     int? pageCount,
     int? currentPage,
@@ -63,6 +68,7 @@ class BookBlock extends MediaBlock {
     return BookBlock(
       id: id ?? this.id,
       title: title ?? this.title,
+      dateAdded: dateAdded ?? this.dateAdded,
       author: author ?? this.author,
       pageCount: pageCount ?? this.pageCount,
       currentPage: currentPage ?? this.currentPage,

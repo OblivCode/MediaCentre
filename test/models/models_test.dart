@@ -73,5 +73,20 @@ void main() {
       expect(block.children[0], isA<MovieBlock>());
       expect(block.children[1], isA<CollectionBlock>());
     });
+
+    test('preserves dateAdded for album blocks', () {
+      final json = {
+        'type': 'album',
+        'id': 'album-1',
+        'title': 'Album',
+        'artist': 'Artist',
+        'dateAdded': '2024-01-02T03:04:05.000Z',
+      };
+
+      final block = mediaBlockFromJson(json) as AlbumBlock;
+
+      expect(
+          block.dateAdded.toUtc(), DateTime.parse(json['dateAdded'] as String));
+    });
   });
 }

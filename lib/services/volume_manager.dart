@@ -458,14 +458,18 @@ class VolumeManager extends ChangeNotifier {
     String title,
     String? artist,
   ) {
+    final normalizedTitle = title.toLowerCase();
+    final normalizedArtist = artist?.trim().toLowerCase();
     for (final child in parent.children) {
       if (child is AlbumBlock) {
         if (mbid != null && mbid.isNotEmpty && child.lastFmMbid == mbid) {
           return true;
         }
-        if (child.title.toLowerCase() == title.toLowerCase() &&
-            (artist == null ||
-                child.artist?.toLowerCase() == artist.toLowerCase())) {
+        final childArtist = child.artist?.trim().toLowerCase();
+        if (child.title.toLowerCase() == normalizedTitle &&
+            normalizedArtist != null &&
+            normalizedArtist.isNotEmpty &&
+            childArtist == normalizedArtist) {
           return true;
         }
       }

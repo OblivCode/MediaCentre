@@ -6,6 +6,7 @@ class CollectionBlock extends MediaBlock {
   CollectionBlock({
     required super.id,
     required super.title,
+    super.dateAdded,
     List<MediaBlock>? children,
   }) : children = children ?? [];
 
@@ -14,6 +15,7 @@ class CollectionBlock extends MediaBlock {
         'type': 'collection',
         'id': id,
         'title': title,
+        'dateAdded': dateAdded.toIso8601String(),
         'children': children.map((c) => c.toJson()).toList(),
       };
 
@@ -26,6 +28,8 @@ class CollectionBlock extends MediaBlock {
     return CollectionBlock(
       id: json['id'] as String,
       title: json['title'] as String,
+      dateAdded: DateTime.tryParse(json['dateAdded'] as String? ?? '') ??
+          DateTime.now(),
       children: children,
     );
   }
@@ -33,11 +37,13 @@ class CollectionBlock extends MediaBlock {
   CollectionBlock copyWith({
     String? id,
     String? title,
+    DateTime? dateAdded,
     List<MediaBlock>? children,
   }) {
     return CollectionBlock(
       id: id ?? this.id,
       title: title ?? this.title,
+      dateAdded: dateAdded ?? this.dateAdded,
       children: children ?? this.children,
     );
   }

@@ -12,6 +12,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   LibraryDomain _domain = LibraryDomain.watch;
+  LibrarySort _sort = LibrarySort.recentlyAdded;
 
   void _setDomain(LibraryDomain domain) {
     if (_domain == domain) return;
@@ -24,7 +25,11 @@ class _MainShellState extends State<MainShell> {
       LibraryDomain.values.indexOf(domain);
 
   Widget _buildContent() {
-    return LibraryScreen(domain: _domain);
+    return LibraryScreen(
+      domain: _domain,
+      sort: _sort,
+      onSortChanged: (sort) => setState(() => _sort = sort),
+    );
   }
 
   @override

@@ -3,6 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:media_centre/services/volume_manager.dart';
 import 'package:media_centre/services/volume_provider.dart';
 import 'package:media_centre/models/collection_block.dart';
+import 'package:media_centre/models/audio_blocks.dart';
 import 'package:media_centre/models/movie_block.dart';
 import 'package:media_centre/models/tv_show_block.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -194,6 +195,28 @@ void main() {
 
       expect(manager.watchableMedia.length, 2);
       expect(manager.rootCollections.length, 1);
+    });
+
+    test('addAlbum rejects duplicates by mbid and title artist', () async {
+      final album = AlbumBlock(
+        id: 'album-1',
+        title: 'Album Title',
+        artist: 'Artist',
+        lastFmMbid: 'mbid-1',
+      );
+      when(() => mockVolume.loadLibrary()).thenAnswer(
+        (_) async =>
+            CollectionBlock(id: 'root', title: 'Library', children: [album]),
+      );
+
+      await manager.setVolume(mockVolume);
+
+      expect(
+        () => manager.addAlbum(
+          AlbumBlock(id: 'album-2', title: 'Album Title', artist: 'Artist'),
+        ),
+        throwsA(isA<DuplicateMediaException>()),
+      );
     });
   });
 }
