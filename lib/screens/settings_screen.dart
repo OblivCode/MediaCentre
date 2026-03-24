@@ -314,59 +314,75 @@ class _VolumeTile extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: RadioListTile<String>(
-        value: volume.providerId,
-        groupValue: isActive ? volume.providerId : null,
-        onChanged: isLoading ? null : (_) => onSelect(),
-        title: Row(
-          children: [
-            Text(volume.providerName),
-            if (isLoading) ...[
-              const SizedBox(width: 8),
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ],
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_getSubtitle(volume)),
-            if (requiresAuth && !isAuthenticated && !isActive) ...[
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: onAuthenticate,
-                icon: const Icon(Icons.login, size: 18),
-                label: const Text('Sign In'),
-              ),
-            ],
-            if (requiresAuth && isAuthenticated)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
+      child: InkWell(
+        onTap: isLoading ? null : onSelect,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              _getIcon(volume),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.check_circle,
-                      size: 16,
-                      color: Colors.green[600],
+                    Row(
+                      children: [
+                        Text(volume.providerName),
+                        if (isLoading) ...[
+                          const SizedBox(width: 8),
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ],
+                      ],
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Connected',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.green[600],
+                    const SizedBox(height: 4),
+                    Text(_getSubtitle(volume)),
+                    if (requiresAuth && !isAuthenticated && !isActive) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: onAuthenticate,
+                        icon: const Icon(Icons.login, size: 18),
+                        label: const Text('Sign In'),
                       ),
-                    ),
+                    ],
+                    if (requiresAuth && isAuthenticated)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 16,
+                              color: Colors.green[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Connected',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.green[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
-          ],
+              Icon(
+                isActive ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: isActive
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.grey,
+              ),
+            ],
+          ),
         ),
-        secondary: _getIcon(volume),
       ),
     );
   }

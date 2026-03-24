@@ -27,9 +27,13 @@ class EpisodeBlock extends MediaBlock {
     return EpisodeBlock(
       id: json['id'] as String,
       title: json['title'] as String,
-      episodeNumber: json['episode_number'] as int,
-      runtimeMinutes: json['runtime_minutes'] as int? ?? 0,
-      userRating: json['user_rating'] as int? ?? 0,
+      episodeNumber:
+          json['episodeNumber'] as int? ?? json['episode_number'] as int? ?? 0,
+      runtimeMinutes: json['runtimeMinutes'] as int? ??
+          json['runtime_minutes'] as int? ??
+          0,
+      userRating:
+          json['userRating'] as int? ?? json['user_rating'] as int? ?? 0,
     );
   }
 

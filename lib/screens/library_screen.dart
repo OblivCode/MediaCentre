@@ -3,22 +3,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/collection_block.dart';
+import '../models/book_block.dart';
+import '../models/comic_book_block.dart';
 import '../models/media_block.dart';
 import '../models/movie_block.dart';
 import '../models/tv_show_block.dart';
 import '../services/volume_manager.dart';
 import '../widgets/add_media_menu.dart';
+import '../widgets/reading_modal.dart';
 import '../widgets/collection_card.dart';
 import '../widgets/rating_modal.dart';
+import 'library_domain.dart';
 import 'add_media_screen.dart';
 import 'create_collection_screen.dart';
 import 'settings_screen.dart';
 import 'tv_show_detail_screen.dart';
 
+enum _CardAction { edit, move, delete }
+
 class LibraryScreen extends StatelessWidget {
   final CollectionBlock? collection;
+  final LibraryDomain domain;
 
-  const LibraryScreen({super.key, this.collection});
+  const LibraryScreen(
+      {super.key, this.collection, this.domain = LibraryDomain.watch});
 
   CollectionBlock _getCurrentLibrary(VolumeManager manager) =>
       collection ?? manager.library;
@@ -110,11 +118,14 @@ class LibraryScreen extends StatelessWidget {
       );
     }
 
-    if (currentLibrary.children.isEmpty) {
+    final items =
+        collection == null ? _rootItems(manager) : currentLibrary.children;
+
+    if (items.isEmpty) {
       return Center(
         child: Text(
           collection == null
-              ? 'No movies yet.\nTap + to add one.'
+              ? _emptyStateText()
               : 'This collection is empty.\nTap + to add items.',
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 16, color: Colors.grey),
@@ -124,9 +135,9 @@ class LibraryScreen extends StatelessWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: currentLibrary.children.length,
+      itemCount: items.length,
       itemBuilder: (context, index) {
-        final media = currentLibrary.children[index];
+        final media = items[index];
         if (media is MovieBlock) {
           return _MovieCard(
             movie: media,
@@ -134,7 +145,7 @@ class LibraryScreen extends StatelessWidget {
             onEdit: (updated) => manager.updateMedia(updated),
             onMoveToCollection: (targetId) =>
                 manager.moveMediaToCollection(media.id, targetId),
-            collections: manager.getAllCollections(),
+            collections: manager.rootCollections,
           );
         }
         if (media is TvShowBlock) {
@@ -145,7 +156,7 @@ class LibraryScreen extends StatelessWidget {
             onDelete: () => manager.deleteMedia(media.id),
             onMoveToCollection: (targetId) =>
                 manager.moveMediaToCollection(media.id, targetId),
-            collections: manager.getAllCollections(),
+            collections: manager.rootCollections,
           );
         }
         if (media is CollectionBlock) {
@@ -155,12 +166,44 @@ class LibraryScreen extends StatelessWidget {
             onDelete: () => manager.deleteMedia(media.id),
           );
         }
+        if (media is BookBlock || media is ComicBookBlock) {
+          return _ReadingCard(
+            media: media,
+            onEdit: (updated) => manager.updateMedia(updated),
+          );
+        }
         return ListTile(
           title: Text(media.title),
           subtitle: const Text('Unknown type'),
         );
       },
     );
+  }
+
+  List<MediaBlock> _rootItems(VolumeManager manager) {
+    switch (domain) {
+      case LibraryDomain.watch:
+        return manager.watchableMedia;
+      case LibraryDomain.read:
+        return manager.readableMedia;
+      case LibraryDomain.listen:
+        return manager.listableMedia;
+      case LibraryDomain.collections:
+        return manager.rootCollections;
+    }
+  }
+
+  String _emptyStateText() {
+    switch (domain) {
+      case LibraryDomain.watch:
+        return 'No movies yet.\nTap + to add one.';
+      case LibraryDomain.read:
+        return 'No reading items yet.\nTap + to add one.';
+      case LibraryDomain.listen:
+        return 'No listening items yet.\nTap + to add one.';
+      case LibraryDomain.collections:
+        return 'No collections yet.\nTap + to add one.';
+    }
   }
 
   void _navigateToCollection(BuildContext context, CollectionBlock col) {
@@ -182,55 +225,107 @@ class LibraryScreen extends StatelessWidget {
     VolumeManager manager,
     CollectionBlock currentLibrary,
   ) async {
-    final choice = await AddMediaMenu.show(context);
+    final choice = await AddMediaMenu.show(context, domain: domain);
     if (choice == null || !context.mounted) return;
 
-    switch (choice) {
-      case AddMediaType.movie:
-        final result = await Navigator.push<MediaBlock>(
-          context,
-          MaterialPageRoute(
-              builder: (context) => const AddMediaScreen(initialTab: 0)),
-        );
-        if (result != null && result is MovieBlock) {
-          try {
-            await manager.addMovie(result);
-          } on DuplicateMediaException catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(e.message)),
-              );
-            }
+    if (choice == AddMediaType.movie) {
+      final result = await Navigator.push<MediaBlock>(
+        context,
+        MaterialPageRoute(
+            builder: (context) => const AddMediaScreen(initialTab: 0)),
+      );
+      if (result != null && result is MovieBlock) {
+        try {
+          await manager.addMovie(result);
+        } on DuplicateMediaException catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(e.message)),
+            );
           }
         }
-      case AddMediaType.tvShow:
-        final result = await Navigator.push<MediaBlock>(
-          context,
-          MaterialPageRoute(
-              builder: (context) => const AddMediaScreen(initialTab: 1)),
-        );
-        if (result != null && result is TvShowBlock) {
-          try {
-            await manager.addTvShow(result);
-          } on DuplicateMediaException catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(e.message)),
-              );
-            }
+      }
+    } else if (choice == AddMediaType.tvShow) {
+      final result = await Navigator.push<MediaBlock>(
+        context,
+        MaterialPageRoute(
+            builder: (context) => const AddMediaScreen(initialTab: 1)),
+      );
+      if (result != null && result is TvShowBlock) {
+        try {
+          await manager.addTvShow(result);
+        } on DuplicateMediaException catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(e.message)),
+            );
           }
         }
-      case AddMediaType.collection:
-        final result = await Navigator.push<CollectionBlock>(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const CreateCollectionScreen(),
-          ),
-        );
-        if (result != null) {
-          manager.addCollection(result);
-        }
+      }
+    } else if (choice == AddMediaType.book) {
+      final result = await Navigator.push<MediaBlock>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const AddMediaScreen(initialTab: 2),
+        ),
+      );
+      if (result != null && result is BookBlock) {
+        await manager.addBook(result);
+      }
+    } else if (choice == AddMediaType.comicBook) {
+      final result = await Navigator.push<MediaBlock>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const AddMediaScreen(initialTab: 3),
+        ),
+      );
+      if (result != null && result is ComicBookBlock) {
+        await manager.addComicBook(result);
+      }
+    } else if (choice == AddMediaType.collection) {
+      final result = await Navigator.push<CollectionBlock>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const CreateCollectionScreen(),
+        ),
+      );
+      if (result != null) {
+        manager.addCollection(result);
+      }
     }
+  }
+}
+
+class _ReadingCard extends StatelessWidget {
+  final MediaBlock media;
+  final ValueChanged<MediaBlock> onEdit;
+
+  const _ReadingCard({required this.media, required this.onEdit});
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = media is BookBlock
+        ? (media as BookBlock).currentPage
+        : (media as ComicBookBlock).currentChapter;
+    final maxValue = media is BookBlock
+        ? (media as BookBlock).pageCount
+        : (media as ComicBookBlock).chapterCount;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ListTile(
+        onTap: () async {
+          final result =
+              await ReadingModal.show(context: context, media: media);
+          if (result != null) onEdit(result.media);
+        },
+        title: Text(media.title),
+        subtitle: Text(
+          maxValue > 0 ? '$progress / $maxValue' : '$progress',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+      ),
+    );
   }
 }
 
@@ -267,6 +362,93 @@ class _MovieCard extends StatelessWidget {
     }
   }
 
+  Future<void> _showMoveDialog(BuildContext context) async {
+    if (onMoveToCollection == null || collections.isEmpty) return;
+
+    String? selectedId;
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Move to Collection'),
+              content: DropdownButtonFormField<String?>(
+                initialValue: selectedId,
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Leave here'),
+                  ),
+                  ...collections.map(
+                    (collection) => DropdownMenuItem<String?>(
+                      value: collection.id,
+                      child: Text(collection.title),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setState(() => selectedId = value),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(dialogContext, selectedId),
+                  child: const Text('Move'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!context.mounted) return;
+    if (result != null) {
+      onMoveToCollection!(result);
+    }
+  }
+
+  Future<void> _showContextMenu(
+      BuildContext context, Offset globalPosition) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final choice = await showMenu<_CardAction>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx,
+        globalPosition.dy,
+        overlay.size.width - globalPosition.dx,
+        overlay.size.height - globalPosition.dy,
+      ),
+      items: [
+        const PopupMenuItem(
+          value: _CardAction.edit,
+          child: Text('Edit Rating'),
+        ),
+        if (onMoveToCollection != null && collections.isNotEmpty)
+          const PopupMenuItem(
+            value: _CardAction.move,
+            child: Text('Move to Collection'),
+          ),
+        const PopupMenuItem(
+          value: _CardAction.delete,
+          child: Text('Delete'),
+        ),
+      ],
+    );
+
+    if (!context.mounted) return;
+    if (choice == _CardAction.edit) {
+      await _showEditModal(context);
+    } else if (choice == _CardAction.move) {
+      await _showMoveDialog(context);
+    } else if (choice == _CardAction.delete) {
+      onDelete();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dismissible(
@@ -285,12 +467,12 @@ class _MovieCard extends StatelessWidget {
       ),
       child: Card(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: InkWell(
+        child: GestureDetector(
           onTap: () => _showEditModal(context),
-          onLongPress: () {
-            HapticFeedback.mediumImpact();
-          },
-          borderRadius: BorderRadius.circular(12),
+          onSecondaryTapDown: (details) => _showContextMenu(
+            context,
+            details.globalPosition,
+          ),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -420,6 +602,93 @@ class _TvShowCard extends StatelessWidget {
     }
   }
 
+  Future<void> _showMoveDialog(BuildContext context) async {
+    if (onMoveToCollection == null || collections.isEmpty) return;
+
+    String? selectedId;
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Move to Collection'),
+              content: DropdownButtonFormField<String?>(
+                initialValue: selectedId,
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Leave here'),
+                  ),
+                  ...collections.map(
+                    (collection) => DropdownMenuItem<String?>(
+                      value: collection.id,
+                      child: Text(collection.title),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setState(() => selectedId = value),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(dialogContext, selectedId),
+                  child: const Text('Move'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!context.mounted) return;
+    if (result != null) {
+      onMoveToCollection!(result);
+    }
+  }
+
+  Future<void> _showContextMenu(
+      BuildContext context, Offset globalPosition) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final choice = await showMenu<_CardAction>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx,
+        globalPosition.dy,
+        overlay.size.width - globalPosition.dx,
+        overlay.size.height - globalPosition.dy,
+      ),
+      items: [
+        const PopupMenuItem(
+          value: _CardAction.edit,
+          child: Text('Edit Rating'),
+        ),
+        if (onMoveToCollection != null && collections.isNotEmpty)
+          const PopupMenuItem(
+            value: _CardAction.move,
+            child: Text('Move to Collection'),
+          ),
+        const PopupMenuItem(
+          value: _CardAction.delete,
+          child: Text('Delete'),
+        ),
+      ],
+    );
+
+    if (!context.mounted) return;
+    if (choice == _CardAction.edit) {
+      await _showEditModal(context);
+    } else if (choice == _CardAction.move) {
+      await _showMoveDialog(context);
+    } else if (choice == _CardAction.delete) {
+      onDelete();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dismissible(
@@ -438,13 +707,16 @@ class _TvShowCard extends StatelessWidget {
       ),
       child: Card(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: InkWell(
+        child: GestureDetector(
           onTap: () => _showEditModal(context),
           onLongPress: () {
             HapticFeedback.mediumImpact();
             onNavigate();
           },
-          borderRadius: BorderRadius.circular(12),
+          onSecondaryTapDown: (details) => _showContextMenu(
+            context,
+            details.globalPosition,
+          ),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(

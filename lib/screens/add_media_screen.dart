@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/models.dart';
+import '../services/anilist_service.dart';
+import '../services/open_library_service.dart';
 import '../services/tmdb_service.dart';
+import '../widgets/book_result_tile.dart';
+import '../widgets/comic_result_tile.dart';
 import '../widgets/rating_modal.dart';
 
 class AddMediaScreen extends StatefulWidget {
@@ -27,14 +31,22 @@ class _AddMediaScreenState extends State<AddMediaScreen>
   bool _isLoadingDetails = false;
   String? _error;
   Timer? _debounceTimer;
+  final _openLibraryService = OpenLibraryService();
+  final _anilistService = AniListService();
 
-  TmdbService get _tmdbService => context.read<TmdbService>();
+  TmdbService? get _tmdbService {
+    try {
+      return context.read<TmdbService>();
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _tabController =
-        TabController(length: 2, vsync: this, initialIndex: widget.initialTab);
+        TabController(length: 4, vsync: this, initialIndex: widget.initialTab);
     _tabController.addListener(_onTabChanged);
   }
 
@@ -72,7 +84,8 @@ class _AddMediaScreenState extends State<AddMediaScreen>
       return;
     }
 
-    if (!_tmdbService.isConfigured) {
+    final tmdbService = _tmdbService;
+    if (tmdbService == null || !tmdbService.isConfigured) {
       setState(() {
         _error = 'TMDB API key not configured. Go to Settings to add it.';
         _results = [];
@@ -87,13 +100,25 @@ class _AddMediaScreenState extends State<AddMediaScreen>
 
     try {
       if (_tabController.index == 0) {
-        final results = await _tmdbService.searchMovies(query);
+        final results = await tmdbService.searchMovies(query);
+        setState(() {
+          _results = results;
+          _isSearching = false;
+        });
+      } else if (_tabController.index == 1) {
+        final results = await tmdbService.searchTvShows(query);
+        setState(() {
+          _results = results;
+          _isSearching = false;
+        });
+      } else if (_tabController.index == 2) {
+        final results = await _openLibraryService.searchBooks(query);
         setState(() {
           _results = results;
           _isSearching = false;
         });
       } else {
-        final results = await _tmdbService.searchTvShows(query);
+        final results = await _anilistService.searchComics(query);
         setState(() {
           _results = results;
           _isSearching = false;
@@ -114,8 +139,10 @@ class _AddMediaScreenState extends State<AddMediaScreen>
     });
 
     try {
-      final details = await _tmdbService.getMovieDetails(result.id);
-      final posterUrl = details.getFullPosterUrl(_tmdbService);
+      final tmdbService = _tmdbService;
+      if (tmdbService == null) return;
+      final details = await tmdbService.getMovieDetails(result.id);
+      final posterUrl = details.getFullPosterUrl(tmdbService);
 
       final movie = MovieBlock(
         id: const Uuid().v4(),
@@ -164,15 +191,17 @@ class _AddMediaScreenState extends State<AddMediaScreen>
     });
 
     try {
-      final details = await _tmdbService.getTvShowDetails(result.id);
-      final posterUrl = details.getFullPosterUrl(_tmdbService);
+      final tmdbService = _tmdbService;
+      if (tmdbService == null) return;
+      final details = await tmdbService.getTvShowDetails(result.id);
+      final posterUrl = details.getFullPosterUrl(tmdbService);
 
       final seasons = details.seasons.map((s) {
         return SeasonBlock(
           id: const Uuid().v4(),
           title: s.name,
           seasonNumber: s.seasonNumber,
-          posterUrl: s.getFullPosterUrl(_tmdbService),
+          posterUrl: s.getFullPosterUrl(tmdbService),
         );
       }).toList();
 
@@ -208,8 +237,35 @@ class _AddMediaScreenState extends State<AddMediaScreen>
     }
   }
 
+  Future<void> _selectBook(OpenLibrarySearchResult result) async {
+    final book = BookBlock(
+      id: const Uuid().v4(),
+      title: result.title,
+      author: result.authorName,
+      pageCount: result.pageCount ?? 0,
+      isbn: result.isbn,
+      coverUrl: result.coverUrl,
+      openLibraryId: result.key,
+    );
+    Navigator.pop(context, book);
+  }
+
+  Future<void> _selectComic(AniListSearchResult result) async {
+    final comic = ComicBookBlock(
+      id: const Uuid().v4(),
+      title: result.title,
+      author: result.author,
+      chapterCount: result.chapterCount ?? 0,
+      coverUrl: result.coverImage,
+      synopsis: result.description,
+      anilistId: result.id,
+    );
+    Navigator.pop(context, comic);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final tmdbService = _tmdbService;
     return Stack(
       children: [
         Scaffold(
@@ -221,6 +277,8 @@ class _AddMediaScreenState extends State<AddMediaScreen>
               tabs: const [
                 Tab(icon: Icon(Icons.movie), text: 'Movies'),
                 Tab(icon: Icon(Icons.tv), text: 'TV Shows'),
+                Tab(icon: Icon(Icons.menu_book), text: 'Books'),
+                Tab(icon: Icon(Icons.style), text: 'Comics'),
               ],
             ),
           ),
@@ -231,9 +289,12 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: _tabController.index == 0
-                        ? 'Search for a movie...'
-                        : 'Search for a TV show...',
+                    hintText: switch (_tabController.index) {
+                      0 => 'Search for a movie...',
+                      1 => 'Search for a TV show...',
+                      2 => 'Search for a book...',
+                      _ => 'Search for a comic...',
+                    },
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -245,7 +306,7 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                   onSubmitted: _search,
                 ),
               ),
-              if (!_tmdbService.isConfigured)
+              if (!(tmdbService?.isConfigured ?? false))
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Card(
@@ -299,17 +360,23 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  _tabController.index == 0
-                                      ? Icons.movie_filter_outlined
-                                      : Icons.tv,
+                                  switch (_tabController.index) {
+                                    0 => Icons.movie_filter_outlined,
+                                    1 => Icons.tv,
+                                    2 => Icons.menu_book,
+                                    _ => Icons.style,
+                                  },
                                   size: 64,
                                   color: Colors.grey[400],
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
-                                  _tabController.index == 0
-                                      ? 'No movies found'
-                                      : 'No TV shows found',
+                                  switch (_tabController.index) {
+                                    0 => 'No movies found',
+                                    1 => 'No TV shows found',
+                                    2 => 'No books found',
+                                    _ => 'No comics found',
+                                  },
                                   style: TextStyle(
                                     fontSize: 18,
                                     color: Colors.grey[600],
@@ -330,9 +397,12 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                                     ),
                                     const SizedBox(height: 16),
                                     Text(
-                                      _tabController.index == 0
-                                          ? 'Search for a movie to add'
-                                          : 'Search for a TV show to add',
+                                      switch (_tabController.index) {
+                                        0 => 'Search for a movie to add',
+                                        1 => 'Search for a TV show to add',
+                                        2 => 'Search for a book to add',
+                                        _ => 'Search for a comic to add',
+                                      },
                                       style: TextStyle(
                                         fontSize: 18,
                                         color: Colors.grey[600],
@@ -349,14 +419,25 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                                   if (result is TmdbSearchResult) {
                                     return _MovieResultTile(
                                       result: result,
-                                      tmdbService: _tmdbService,
+                                      tmdbService: tmdbService!,
                                       onTap: () => _selectMovie(result),
                                     );
                                   } else if (result is TmdbTvSearchResult) {
                                     return _TvResultTile(
                                       result: result,
-                                      tmdbService: _tmdbService,
+                                      tmdbService: tmdbService!,
                                       onTap: () => _selectTvShow(result),
+                                    );
+                                  } else if (result
+                                      is OpenLibrarySearchResult) {
+                                    return BookResultTile(
+                                      result: result,
+                                      onTap: () => _selectBook(result),
+                                    );
+                                  } else if (result is AniListSearchResult) {
+                                    return ComicResultTile(
+                                      result: result,
+                                      onTap: () => _selectComic(result),
                                     );
                                   }
                                   return const SizedBox.shrink();

@@ -7,6 +7,7 @@ import '../models/season_block.dart';
 import '../models/episode_block.dart';
 import '../models/media_block.dart';
 import '../services/volume_manager.dart';
+import '../services/tmdb_service.dart';
 import '../widgets/rating_modal.dart';
 
 class TvShowDetailScreen extends StatelessWidget {
@@ -54,22 +55,94 @@ class TvShowDetailScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => SeasonDetailScreen(season: season),
+        builder: (_) => SeasonDetailScreen(tvShow: tvShow, season: season),
       ),
     );
   }
 }
 
-class SeasonDetailScreen extends StatelessWidget {
+class SeasonDetailScreen extends StatefulWidget {
+  final TvShowBlock tvShow;
   final SeasonBlock season;
 
-  const SeasonDetailScreen({super.key, required this.season});
+  const SeasonDetailScreen(
+      {super.key, required this.tvShow, required this.season});
+
+  @override
+  State<SeasonDetailScreen> createState() => _SeasonDetailScreenState();
+}
+
+class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
+  late SeasonBlock _season;
+  bool _isLoading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _season = widget.season;
+    _loadSeasonDetailsIfNeeded();
+  }
+
+  Future<void> _loadSeasonDetailsIfNeeded() async {
+    if (_season.episodes.isNotEmpty) return;
+    if (widget.tvShow.tmdbId == null) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final tmdbService = context.read<TmdbService>();
+      final details = await tmdbService.getSeasonDetails(
+        widget.tvShow.tmdbId!,
+        _season.seasonNumber,
+      );
+      final episodes = details.episodes
+          .map(
+            (episode) => EpisodeBlock(
+              id: 'season_${_season.id}_episode_${episode.id}',
+              title: episode.name,
+              episodeNumber: episode.episodeNumber,
+              runtimeMinutes: episode.runtime ?? 0,
+              userRating: 0,
+            ),
+          )
+          .toList();
+
+      final updatedSeason = _season.copyWith(
+        title: details.name,
+        posterUrl: details.getFullPosterUrl(tmdbService),
+        episodes: episodes,
+      );
+
+      final updatedSeasons = widget.tvShow.seasons.map((season) {
+        if (season.id == updatedSeason.id) return updatedSeason;
+        return season;
+      }).toList();
+      final updatedTvShow = widget.tvShow.copyWith(seasons: updatedSeasons);
+
+      if (!mounted) return;
+      setState(() {
+        _season = updatedSeason;
+        _isLoading = false;
+      });
+      await context.read<VolumeManager>().updateMedia(updatedTvShow);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(season.title),
+        title: Text(_season.title),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: _buildBody(context),
@@ -77,7 +150,20 @@ class SeasonDetailScreen extends StatelessWidget {
   }
 
   Widget _buildBody(BuildContext context) {
-    if (season.episodes.isEmpty) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Text(
+          _error!,
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    if (_season.episodes.isEmpty) {
       return Center(
         child: Text(
           'No episodes available',
@@ -88,9 +174,9 @@ class SeasonDetailScreen extends StatelessWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: season.episodes.length,
+      itemCount: _season.episodes.length,
       itemBuilder: (context, index) {
-        final episode = season.episodes[index];
+        final episode = _season.episodes[index];
         return _EpisodeCard(
           episode: episode,
           onEdit: (updated) =>
@@ -124,17 +210,45 @@ class _SeasonCard extends StatelessWidget {
     }
   }
 
+  Future<void> _showContextMenu(
+      BuildContext context, Offset globalPosition) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final choice = await showMenu<_SeasonAction>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx,
+        globalPosition.dy,
+        overlay.size.width - globalPosition.dx,
+        overlay.size.height - globalPosition.dy,
+      ),
+      items: const [
+        PopupMenuItem(value: _SeasonAction.edit, child: Text('Edit Rating')),
+        PopupMenuItem(value: _SeasonAction.open, child: Text('Open Season')),
+      ],
+    );
+
+    if (!context.mounted) return;
+    if (choice == _SeasonAction.edit) {
+      await _showEditModal(context);
+    } else if (choice == _SeasonAction.open) {
+      onNavigate();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: InkWell(
+      child: GestureDetector(
         onTap: () => _showEditModal(context),
         onLongPress: () {
           HapticFeedback.mediumImpact();
           onNavigate();
         },
-        borderRadius: BorderRadius.circular(12),
+        onSecondaryTapDown: (details) => _showContextMenu(
+          context,
+          details.globalPosition,
+        ),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -219,6 +333,8 @@ class _SeasonCard extends StatelessWidget {
     );
   }
 }
+
+enum _SeasonAction { edit, open }
 
 class _EpisodeCard extends StatelessWidget {
   final EpisodeBlock episode;

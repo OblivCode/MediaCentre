@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/collection_block.dart';
+import '../models/book_block.dart';
+import '../models/comic_book_block.dart';
 import '../models/media_block.dart';
 import '../models/movie_block.dart';
 import '../models/tv_show_block.dart';
@@ -167,6 +169,40 @@ class VolumeManager extends ChangeNotifier {
     return success;
   }
 
+  Future<bool> addBook(BookBlock book) async {
+    if (_activeVolume == null) return false;
+
+    final updatedLibrary = _library.addChild(book);
+    final success = await _activeVolume!.saveLibrary(updatedLibrary);
+
+    if (success) {
+      _library = updatedLibrary;
+      notifyListeners();
+    } else {
+      _error = 'Failed to save book';
+      notifyListeners();
+    }
+
+    return success;
+  }
+
+  Future<bool> addComicBook(ComicBookBlock comicBook) async {
+    if (_activeVolume == null) return false;
+
+    final updatedLibrary = _library.addChild(comicBook);
+    final success = await _activeVolume!.saveLibrary(updatedLibrary);
+
+    if (success) {
+      _library = updatedLibrary;
+      notifyListeners();
+    } else {
+      _error = 'Failed to save comic book';
+      notifyListeners();
+    }
+
+    return success;
+  }
+
   Future<bool> deleteMovie(String id) async {
     if (_activeVolume == null) return false;
 
@@ -242,6 +278,14 @@ class VolumeManager extends ChangeNotifier {
     return success;
   }
 
+  Future<bool> updateBook(BookBlock updatedBook) async {
+    return updateMedia(updatedBook);
+  }
+
+  Future<bool> updateComicBook(ComicBookBlock updatedComicBook) async {
+    return updateMedia(updatedComicBook);
+  }
+
   CollectionBlock _removeMediaById(CollectionBlock parent, String id) {
     final updatedChildren = parent.children.where((m) => m.id != id).map((m) {
       if (m is CollectionBlock) {
@@ -271,6 +315,30 @@ class VolumeManager extends ChangeNotifier {
     return collections;
   }
 
+  List<MediaBlock> get watchableMedia {
+    return _library.children
+        .where((block) => block is MovieBlock || block is TvShowBlock)
+        .toList();
+  }
+
+  List<MediaBlock> get readableMedia {
+    return _library.children
+        .where((block) => block is BookBlock || block is ComicBookBlock)
+        .toList();
+  }
+
+  List<MediaBlock> get listableMedia {
+    return const [];
+  }
+
+  List<CollectionBlock> get rootCollections {
+    return _library.children.whereType<CollectionBlock>().toList();
+  }
+
+  CollectionBlock? getCollectionById(String id) {
+    return _findCollectionById(_library, id);
+  }
+
   void _collectCollections(
     CollectionBlock parent,
     List<CollectionBlock> collections,
@@ -281,6 +349,17 @@ class VolumeManager extends ChangeNotifier {
         _collectCollections(child, collections);
       }
     }
+  }
+
+  CollectionBlock? _findCollectionById(CollectionBlock parent, String id) {
+    for (final child in parent.children) {
+      if (child is CollectionBlock) {
+        if (child.id == id) return child;
+        final found = _findCollectionById(child, id);
+        if (found != null) return found;
+      }
+    }
+    return null;
   }
 
   bool _checkForDuplicate(int? tmdbId, String? type) {
@@ -356,8 +435,8 @@ class VolumeManager extends ChangeNotifier {
     final success = await volume.authenticate();
     if (success) {
       notifyListeners();
-  }
-  return success;
+    }
+    return success;
   }
 
   Future<void> signOutVolume(VolumeProvider volume) async {

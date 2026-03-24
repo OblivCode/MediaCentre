@@ -49,4 +49,14 @@ class CollectionBlock extends MediaBlock {
   CollectionBlock removeChild(String id) {
     return copyWith(children: children.where((c) => c.id != id).toList());
   }
+
+  CollectionBlock replaceChild(MediaBlock updated) {
+    return copyWith(
+      children: children.map((child) {
+        if (child.id == updated.id) return updated;
+        if (child is CollectionBlock) return child.replaceChild(updated);
+        return child;
+      }).toList(),
+    );
+  }
 }

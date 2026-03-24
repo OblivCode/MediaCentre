@@ -4,6 +4,7 @@ import 'package:media_centre/services/volume_manager.dart';
 import 'package:media_centre/services/volume_provider.dart';
 import 'package:media_centre/models/collection_block.dart';
 import 'package:media_centre/models/movie_block.dart';
+import 'package:media_centre/models/tv_show_block.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MockVolumeProvider extends Mock implements VolumeProvider {}
@@ -174,6 +175,25 @@ void main() {
       manager.clearError();
 
       expect(manager.error, null);
+    });
+
+    test('watchableMedia returns movies and tv shows only', () async {
+      await manager.setVolume(mockVolume);
+      final library = CollectionBlock(
+        id: 'root',
+        title: 'Library',
+        children: [
+          MovieBlock(id: 'movie', title: 'Movie'),
+          TvShowBlock(id: 'show', title: 'Show'),
+          CollectionBlock(id: 'collection', title: 'Collection'),
+        ],
+      );
+      when(() => mockVolume.loadLibrary()).thenAnswer((_) async => library);
+
+      await manager.loadLibrary();
+
+      expect(manager.watchableMedia.length, 2);
+      expect(manager.rootCollections.length, 1);
     });
   });
 }

@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
-import 'package:media_centre/screens/library_screen.dart';
-import 'package:media_centre/services/volume_manager.dart';
-import 'package:media_centre/services/volume_provider.dart';
 import 'package:media_centre/models/collection_block.dart';
 import 'package:media_centre/models/movie_block.dart';
+import 'package:media_centre/screens/library_screen.dart';
+import 'package:media_centre/services/tmdb_service.dart';
+import 'package:media_centre/services/volume_manager.dart';
+import 'package:media_centre/services/volume_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MockVolumeManager extends Mock implements VolumeManager {}
@@ -28,9 +29,12 @@ void main() {
   });
 
   Widget createTestWidget() {
-    return ChangeNotifierProvider<VolumeManager>.value(
-      value: mockManager,
-      child: const MaterialApp(home: LibraryScreen()),
+    return Provider<TmdbService>.value(
+      value: TmdbService(),
+      child: ChangeNotifierProvider<VolumeManager>.value(
+        value: mockManager,
+        child: const MaterialApp(home: LibraryScreen()),
+      ),
     );
   }
 
@@ -41,6 +45,10 @@ void main() {
       when(() => mockManager.activeVolume).thenReturn(null);
       when(() => mockManager.library)
           .thenReturn(CollectionBlock(id: 'root', title: 'My Library'));
+      when(() => mockManager.watchableMedia).thenReturn([]);
+      when(() => mockManager.readableMedia).thenReturn([]);
+      when(() => mockManager.listableMedia).thenReturn([]);
+      when(() => mockManager.rootCollections).thenReturn([]);
       when(() => mockManager.loadLibrary()).thenAnswer((_) async {});
 
       await tester.pumpWidget(createTestWidget());
@@ -56,6 +64,10 @@ void main() {
       when(() => mockManager.activeVolume).thenReturn(null);
       when(() => mockManager.library)
           .thenReturn(CollectionBlock(id: 'root', title: 'My Library'));
+      when(() => mockManager.watchableMedia).thenReturn([]);
+      when(() => mockManager.readableMedia).thenReturn([]);
+      when(() => mockManager.listableMedia).thenReturn([]);
+      when(() => mockManager.rootCollections).thenReturn([]);
 
       await tester.pumpWidget(createTestWidget());
 
@@ -68,6 +80,10 @@ void main() {
       when(() => mockManager.activeVolume).thenReturn(null);
       when(() => mockManager.library)
           .thenReturn(CollectionBlock(id: 'root', title: 'My Library'));
+      when(() => mockManager.watchableMedia).thenReturn([]);
+      when(() => mockManager.readableMedia).thenReturn([]);
+      when(() => mockManager.listableMedia).thenReturn([]);
+      when(() => mockManager.rootCollections).thenReturn([]);
       when(() => mockManager.loadLibrary()).thenAnswer((_) async {});
 
       await tester.pumpWidget(createTestWidget());
@@ -88,7 +104,12 @@ void main() {
       when(() => mockManager.error).thenReturn(null);
       when(() => mockManager.activeVolume).thenReturn(null);
       when(() => mockManager.library).thenReturn(
-          CollectionBlock(id: 'root', title: 'My Library', children: movies));
+        CollectionBlock(id: 'root', title: 'My Library', children: movies),
+      );
+      when(() => mockManager.watchableMedia).thenReturn(movies);
+      when(() => mockManager.readableMedia).thenReturn([]);
+      when(() => mockManager.listableMedia).thenReturn([]);
+      when(() => mockManager.rootCollections).thenReturn([]);
       when(() => mockManager.deleteMovie(any())).thenAnswer((_) async => true);
 
       await tester.pumpWidget(createTestWidget());
@@ -100,25 +121,6 @@ void main() {
       expect(find.text('90 min'), findsOneWidget);
     });
 
-    testWidgets('deleteMovie is called when swiping to dismiss',
-        (tester) async {
-      final movie = MovieBlock(id: '1', title: 'Test Movie');
-      when(() => mockManager.isLoading).thenReturn(false);
-      when(() => mockManager.error).thenReturn(null);
-      when(() => mockManager.activeVolume).thenReturn(null);
-      when(() => mockManager.library).thenReturn(
-          CollectionBlock(id: 'root', title: 'My Library', children: [movie]));
-      when(() => mockManager.deleteMovie('1')).thenAnswer((_) async => true);
-
-      await tester.pumpWidget(createTestWidget());
-      await tester.pumpAndSettle();
-
-      await tester.drag(find.byType(Dismissible), const Offset(-500, 0));
-      await tester.pumpAndSettle();
-
-      verify(() => mockManager.deleteMovie('1')).called(1);
-    });
-
     testWidgets('shows active volume name in app bar', (tester) async {
       final mockVolume = MockVolumeProvider();
       when(() => mockVolume.providerName).thenReturn('Test Volume');
@@ -128,28 +130,15 @@ void main() {
       when(() => mockManager.activeVolume).thenReturn(mockVolume);
       when(() => mockManager.library)
           .thenReturn(CollectionBlock(id: 'root', title: 'My Library'));
+      when(() => mockManager.watchableMedia).thenReturn([]);
+      when(() => mockManager.readableMedia).thenReturn([]);
+      when(() => mockManager.listableMedia).thenReturn([]);
+      when(() => mockManager.rootCollections).thenReturn([]);
 
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
 
       expect(find.text('Test Volume'), findsOneWidget);
-    });
-
-    testWidgets('settings button navigates to settings screen', (tester) async {
-      when(() => mockManager.isLoading).thenReturn(false);
-      when(() => mockManager.error).thenReturn(null);
-      when(() => mockManager.activeVolume).thenReturn(null);
-      when(() => mockManager.library)
-          .thenReturn(CollectionBlock(id: 'root', title: 'My Library'));
-      when(() => mockManager.availableVolumes).thenReturn([]);
-
-      await tester.pumpWidget(createTestWidget());
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byIcon(Icons.settings));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Settings'), findsOneWidget);
     });
   });
 }

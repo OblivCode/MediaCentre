@@ -235,7 +235,7 @@ class _RatingModalState extends State<RatingModal> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: _selectedCollectionId,
+                initialValue: _selectedCollectionId,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   hintText: 'Leave here',
