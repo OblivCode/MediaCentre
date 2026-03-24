@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/library_domain.dart';
 
-enum AddMediaType { movie, tvShow, book, comicBook, collection }
+enum AddMediaType { movie, tvShow, book, comicBook, album, collection }
 
 class AddMediaMenu {
   static Future<AddMediaType?> show(
@@ -49,6 +49,12 @@ class AddMediaMenu {
                 leading: const Icon(Icons.style),
                 title: const Text('Add Comic Book'),
                 onTap: () => Navigator.pop(context, AddMediaType.comicBook),
+              ),
+            ] else if (domain == LibraryDomain.listen) ...[
+              ListTile(
+                leading: const Icon(Icons.album),
+                title: const Text('Add Album'),
+                onTap: () => Navigator.pop(context, AddMediaType.album),
               ),
             ] else if (domain == LibraryDomain.collections) ...[
               ListTile(

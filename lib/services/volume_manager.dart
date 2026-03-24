@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/collection_block.dart';
+import '../models/audio_blocks.dart';
 import '../models/book_block.dart';
 import '../models/comic_book_block.dart';
 import '../models/media_block.dart';
@@ -172,6 +173,10 @@ class VolumeManager extends ChangeNotifier {
   Future<bool> addBook(BookBlock book) async {
     if (_activeVolume == null) return false;
 
+    if (_checkForDuplicateBook(book.isbn)) {
+      throw DuplicateMediaException('This book is already in your library');
+    }
+
     final updatedLibrary = _library.addChild(book);
     final success = await _activeVolume!.saveLibrary(updatedLibrary);
 
@@ -188,6 +193,10 @@ class VolumeManager extends ChangeNotifier {
 
   Future<bool> addComicBook(ComicBookBlock comicBook) async {
     if (_activeVolume == null) return false;
+
+    if (_checkForDuplicateComic(comicBook.anilistId)) {
+      throw DuplicateMediaException('This comic is already in your library');
+    }
 
     final updatedLibrary = _library.addChild(comicBook);
     final success = await _activeVolume!.saveLibrary(updatedLibrary);
@@ -286,6 +295,31 @@ class VolumeManager extends ChangeNotifier {
     return updateMedia(updatedComicBook);
   }
 
+  Future<bool> addAlbum(AlbumBlock album) async {
+    if (_activeVolume == null) return false;
+
+    if (_checkForDuplicateAlbum(album.lastFmMbid, album.title, album.artist)) {
+      throw DuplicateMediaException('This album is already in your library');
+    }
+
+    final updatedLibrary = _library.addChild(album);
+    final success = await _activeVolume!.saveLibrary(updatedLibrary);
+
+    if (success) {
+      _library = updatedLibrary;
+      notifyListeners();
+    } else {
+      _error = 'Failed to save album';
+      notifyListeners();
+    }
+
+    return success;
+  }
+
+  Future<bool> updateAlbum(AlbumBlock updatedAlbum) async {
+    return updateMedia(updatedAlbum);
+  }
+
   CollectionBlock _removeMediaById(CollectionBlock parent, String id) {
     final updatedChildren = parent.children.where((m) => m.id != id).map((m) {
       if (m is CollectionBlock) {
@@ -328,7 +362,7 @@ class VolumeManager extends ChangeNotifier {
   }
 
   List<MediaBlock> get listableMedia {
-    return const [];
+    return _library.children.whereType<AlbumBlock>().toList();
   }
 
   List<CollectionBlock> get rootCollections {
@@ -367,6 +401,20 @@ class VolumeManager extends ChangeNotifier {
     return _findTmdbId(_library, tmdbId, type);
   }
 
+  bool _checkForDuplicateBook(String? isbn) {
+    if (isbn == null || isbn.isEmpty) return false;
+    return _findBookDuplicate(_library, isbn);
+  }
+
+  bool _checkForDuplicateComic(int? anilistId) {
+    if (anilistId == null) return false;
+    return _findComicDuplicate(_library, anilistId);
+  }
+
+  bool _checkForDuplicateAlbum(String? mbid, String title, String? artist) {
+    return _findAlbumDuplicate(_library, mbid, title, artist);
+  }
+
   bool _findTmdbId(CollectionBlock parent, int tmdbId, String? type) {
     for (final child in parent.children) {
       if (child is MovieBlock && type == 'movie') {
@@ -375,6 +423,55 @@ class VolumeManager extends ChangeNotifier {
         if (child.tmdbId == tmdbId) return true;
       } else if (child is CollectionBlock) {
         if (_findTmdbId(child, tmdbId, type)) return true;
+      }
+    }
+    return false;
+  }
+
+  bool _findBookDuplicate(CollectionBlock parent, String isbn) {
+    for (final child in parent.children) {
+      if (child is BookBlock && child.isbn != null && child.isbn == isbn) {
+        return true;
+      }
+      if (child is CollectionBlock && _findBookDuplicate(child, isbn)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _findComicDuplicate(CollectionBlock parent, int anilistId) {
+    for (final child in parent.children) {
+      if (child is ComicBookBlock && child.anilistId == anilistId) {
+        return true;
+      }
+      if (child is CollectionBlock && _findComicDuplicate(child, anilistId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _findAlbumDuplicate(
+    CollectionBlock parent,
+    String? mbid,
+    String title,
+    String? artist,
+  ) {
+    for (final child in parent.children) {
+      if (child is AlbumBlock) {
+        if (mbid != null && mbid.isNotEmpty && child.lastFmMbid == mbid) {
+          return true;
+        }
+        if (child.title.toLowerCase() == title.toLowerCase() &&
+            (artist == null ||
+                child.artist?.toLowerCase() == artist.toLowerCase())) {
+          return true;
+        }
+      }
+      if (child is CollectionBlock &&
+          _findAlbumDuplicate(child, mbid, title, artist)) {
+        return true;
       }
     }
     return false;

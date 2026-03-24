@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/collection_block.dart';
+import '../models/audio_blocks.dart';
 import '../models/book_block.dart';
 import '../models/comic_book_block.dart';
 import '../models/media_block.dart';
@@ -281,6 +282,16 @@ class LibraryScreen extends StatelessWidget {
       );
       if (result != null && result is ComicBookBlock) {
         await manager.addComicBook(result);
+      }
+    } else if (choice == AddMediaType.album) {
+      final result = await Navigator.push<MediaBlock>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const AddMediaScreen(initialTab: 4),
+        ),
+      );
+      if (result != null && result is AlbumBlock) {
+        await manager.addAlbum(result);
       }
     } else if (choice == AddMediaType.collection) {
       final result = await Navigator.push<CollectionBlock>(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'services/lastfm_service.dart';
 import 'services/tmdb_service.dart';
 import 'services/volume_manager.dart';
 import 'screens/main_shell.dart';
@@ -11,19 +12,24 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final tmdbService = TmdbService();
   tmdbService.setApiKey(prefs.getString('tmdb_api_key'));
+  final lastFmService = LastFmService();
+  lastFmService.setApiKey(prefs.getString('lastfm_api_key'));
 
   runApp(MediaCentreApp(
     tmdbService: tmdbService,
+    lastFmService: lastFmService,
   ));
 }
 
 class MediaCentreApp extends StatelessWidget {
   final TmdbService tmdbService;
+  final LastFmService lastFmService;
 
-  const MediaCentreApp({
+  MediaCentreApp({
     super.key,
     required this.tmdbService,
-  });
+    LastFmService? lastFmService,
+  }) : lastFmService = lastFmService ?? LastFmService();
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +37,7 @@ class MediaCentreApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => VolumeManager()..initialize()),
         Provider.value(value: tmdbService),
+        Provider.value(value: lastFmService),
       ],
       child: MaterialApp(
         title: 'MediaCentre',

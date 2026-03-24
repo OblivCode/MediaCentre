@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/lastfm_service.dart';
 import '../services/tmdb_service.dart';
 import '../services/volume_manager.dart';
 
@@ -13,6 +14,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _apiKeyController = TextEditingController();
+  final _lastFmKeyController = TextEditingController();
   bool _isTestingKey = false;
   bool _obscureKey = true;
 
@@ -25,11 +27,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _loadApiKey() {
     final tmdbService = context.read<TmdbService>();
     _apiKeyController.text = tmdbService.apiKey ?? '';
+
+    final lastFmService = context.read<LastFmService>();
+    _lastFmKeyController.text = lastFmService.apiKey ?? '';
   }
 
   @override
   void dispose() {
     _apiKeyController.dispose();
+    _lastFmKeyController.dispose();
     super.dispose();
   }
 
@@ -76,6 +82,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _saveLastFmApiKey() async {
+    final lastFmService = context.read<LastFmService>();
+    final prefs = await SharedPreferences.getInstance();
+    final key = _lastFmKeyController.text.trim();
+
+    lastFmService.setApiKey(key.isEmpty ? null : key);
+    if (key.isEmpty) {
+      await prefs.remove('lastfm_api_key');
+    } else {
+      await prefs.setString('lastfm_api_key', key);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            key.isEmpty ? 'Last.fm API key removed' : 'Last.fm API key saved',
+          ),
+        ),
+      );
     }
   }
 
@@ -186,6 +215,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 : const Icon(Icons.save),
                             label: Text(
                                 _isTestingKey ? 'Validating...' : 'Save Key'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
+                child: Text(
+                  'Last.fm API Configuration',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.album),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Last.fm API Key',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Required for album search in the Listen tab.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _lastFmKeyController,
+                          decoration: const InputDecoration(
+                            labelText: 'API Key',
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _saveLastFmApiKey,
+                            icon: const Icon(Icons.save),
+                            label: const Text('Save Key'),
                           ),
                         ),
                       ],

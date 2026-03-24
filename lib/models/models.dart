@@ -1,5 +1,6 @@
 export 'media_block.dart';
 export 'movie_block.dart';
+export 'audio_blocks.dart';
 export 'book_block.dart';
 export 'comic_book_block.dart';
 export 'collection_block.dart';
@@ -9,6 +10,7 @@ export 'episode_block.dart';
 
 import 'media_block.dart';
 import 'movie_block.dart';
+import 'audio_blocks.dart';
 import 'book_block.dart';
 import 'comic_book_block.dart';
 import 'collection_block.dart';
@@ -21,6 +23,8 @@ MediaBlock mediaBlockFromJson(Map<String, dynamic> json) {
   switch (type) {
     case 'movie':
       return MovieBlock.fromJson(json);
+    case 'album':
+      return AlbumBlock.fromJson(json);
     case 'book':
       return BookBlock.fromJson(json);
     case 'comic_book':

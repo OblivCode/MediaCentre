@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/models.dart';
 import '../services/anilist_service.dart';
+import '../services/lastfm_service.dart';
 import '../services/open_library_service.dart';
 import '../services/tmdb_service.dart';
+import '../widgets/album_result_tile.dart';
 import '../widgets/book_result_tile.dart';
 import '../widgets/comic_result_tile.dart';
 import '../widgets/rating_modal.dart';
@@ -31,8 +33,19 @@ class _AddMediaScreenState extends State<AddMediaScreen>
   bool _isLoadingDetails = false;
   String? _error;
   Timer? _debounceTimer;
+  int _currentPage = 1;
+  bool _hasMore = false;
+  String _lastQuery = '';
   final _openLibraryService = OpenLibraryService();
   final _anilistService = AniListService();
+
+  LastFmService? get _lastFmService {
+    try {
+      return context.read<LastFmService>();
+    } catch (_) {
+      return null;
+    }
+  }
 
   TmdbService? get _tmdbService {
     try {
@@ -46,7 +59,7 @@ class _AddMediaScreenState extends State<AddMediaScreen>
   void initState() {
     super.initState();
     _tabController =
-        TabController(length: 4, vsync: this, initialIndex: widget.initialTab);
+        TabController(length: 5, vsync: this, initialIndex: widget.initialTab);
     _tabController.addListener(_onTabChanged);
   }
 
@@ -64,6 +77,9 @@ class _AddMediaScreenState extends State<AddMediaScreen>
     setState(() {
       _results = [];
       _error = null;
+      _currentPage = 1;
+      _hasMore = false;
+      _lastQuery = '';
     });
     _search(_searchController.text);
   }
@@ -80,15 +96,20 @@ class _AddMediaScreenState extends State<AddMediaScreen>
       setState(() {
         _results = [];
         _error = null;
+        _hasMore = false;
+        _currentPage = 1;
+        _lastQuery = '';
       });
       return;
     }
 
     final tmdbService = _tmdbService;
-    if (tmdbService == null || !tmdbService.isConfigured) {
+    if (_tabController.index < 2 &&
+        (tmdbService == null || !tmdbService.isConfigured)) {
       setState(() {
         _error = 'TMDB API key not configured. Go to Settings to add it.';
         _results = [];
+        _isSearching = false;
       });
       return;
     }
@@ -96,41 +117,86 @@ class _AddMediaScreenState extends State<AddMediaScreen>
     setState(() {
       _isSearching = true;
       _error = null;
+      if (query != _lastQuery) {
+        _results = [];
+        _currentPage = 1;
+      }
     });
 
     try {
+      final page = _currentPage;
       if (_tabController.index == 0) {
-        final results = await tmdbService.searchMovies(query);
+        final results = await tmdbService!.searchMovies(query, page: page);
         setState(() {
-          _results = results;
+          _results = page == 1 ? results : [..._results, ...results];
           _isSearching = false;
+          _hasMore = results.isNotEmpty;
+          _lastQuery = query;
         });
       } else if (_tabController.index == 1) {
-        final results = await tmdbService.searchTvShows(query);
+        final results = await tmdbService!.searchTvShows(query, page: page);
         setState(() {
-          _results = results;
+          _results = page == 1 ? results : [..._results, ...results];
           _isSearching = false;
+          _hasMore = results.isNotEmpty;
+          _lastQuery = query;
         });
       } else if (_tabController.index == 2) {
-        final results = await _openLibraryService.searchBooks(query);
+        final results =
+            await _openLibraryService.searchBooks(query, page: page);
         setState(() {
-          _results = results;
+          _results = page == 1 ? results : [..._results, ...results];
           _isSearching = false;
+          _hasMore = results.isNotEmpty;
+          _lastQuery = query;
+        });
+      } else if (_tabController.index == 3) {
+        final results = await _anilistService.searchComics(query, page: page);
+        setState(() {
+          _results = page == 1 ? results : [..._results, ...results];
+          _isSearching = false;
+          _hasMore = results.isNotEmpty;
+          _lastQuery = query;
         });
       } else {
-        final results = await _anilistService.searchComics(query);
-        setState(() {
-          _results = results;
-          _isSearching = false;
-        });
+        await _searchLastFm(query, page: page);
       }
     } catch (e) {
       setState(() {
         _error = 'Search failed: ${e.toString()}';
         _results = [];
         _isSearching = false;
+        _hasMore = false;
       });
     }
+  }
+
+  Future<void> _searchLastFm(String query, {required int page}) async {
+    final lastFm = _lastFmService;
+    if (lastFm == null || !lastFm.isConfigured) {
+      setState(() {
+        _error = 'Last.fm API key not configured. Go to Settings to add it.';
+        _results = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    final results = await lastFm.searchAlbums(query, page: page);
+    setState(() {
+      _results = page == 1 ? results : [..._results, ...results];
+      _isSearching = false;
+      _hasMore = results.isNotEmpty;
+      _lastQuery = query;
+    });
+  }
+
+  Future<void> _loadMore() async {
+    if (_isSearching || !_hasMore) return;
+    setState(() {
+      _currentPage += 1;
+    });
+    await _search(_lastQuery);
   }
 
   Future<void> _selectMovie(TmdbSearchResult result) async {
@@ -263,6 +329,18 @@ class _AddMediaScreenState extends State<AddMediaScreen>
     Navigator.pop(context, comic);
   }
 
+  Future<void> _selectAlbum(LastFmSearchResult result) async {
+    final album = AlbumBlock(
+      id: const Uuid().v4(),
+      title: result.title,
+      artist: result.artist,
+      trackCount: result.trackCount ?? 0,
+      coverUrl: result.imageUrl,
+      lastFmMbid: result.mbid,
+    );
+    Navigator.pop(context, album);
+  }
+
   @override
   Widget build(BuildContext context) {
     final tmdbService = _tmdbService;
@@ -279,6 +357,7 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                 Tab(icon: Icon(Icons.tv), text: 'TV Shows'),
                 Tab(icon: Icon(Icons.menu_book), text: 'Books'),
                 Tab(icon: Icon(Icons.style), text: 'Comics'),
+                Tab(icon: Icon(Icons.album), text: 'Listen'),
               ],
             ),
           ),
@@ -293,7 +372,8 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                       0 => 'Search for a movie...',
                       1 => 'Search for a TV show...',
                       2 => 'Search for a book...',
-                      _ => 'Search for a comic...',
+                      3 => 'Search for a comic...',
+                      _ => 'Search for an album...',
                     },
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
@@ -306,7 +386,8 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                   onSubmitted: _search,
                 ),
               ),
-              if (!(tmdbService?.isConfigured ?? false))
+              if (_tabController.index < 2 &&
+                  !(tmdbService?.isConfigured ?? false))
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Card(
@@ -364,7 +445,8 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                                     0 => Icons.movie_filter_outlined,
                                     1 => Icons.tv,
                                     2 => Icons.menu_book,
-                                    _ => Icons.style,
+                                    3 => Icons.style,
+                                    _ => Icons.album,
                                   },
                                   size: 64,
                                   color: Colors.grey[400],
@@ -375,7 +457,8 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                                     0 => 'No movies found',
                                     1 => 'No TV shows found',
                                     2 => 'No books found',
-                                    _ => 'No comics found',
+                                    3 => 'No comics found',
+                                    _ => 'No albums found',
                                   },
                                   style: TextStyle(
                                     fontSize: 18,
@@ -401,7 +484,8 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                                         0 => 'Search for a movie to add',
                                         1 => 'Search for a TV show to add',
                                         2 => 'Search for a book to add',
-                                        _ => 'Search for a comic to add',
+                                        3 => 'Search for a comic to add',
+                                        _ => 'Search for an album to add',
                                       },
                                       style: TextStyle(
                                         fontSize: 18,
@@ -411,37 +495,59 @@ class _AddMediaScreenState extends State<AddMediaScreen>
                                   ],
                                 ),
                               )
-                            : ListView.builder(
-                                controller: _scrollController,
-                                itemCount: _results.length,
-                                itemBuilder: (context, index) {
-                                  final result = _results[index];
-                                  if (result is TmdbSearchResult) {
-                                    return _MovieResultTile(
-                                      result: result,
-                                      tmdbService: tmdbService!,
-                                      onTap: () => _selectMovie(result),
-                                    );
-                                  } else if (result is TmdbTvSearchResult) {
-                                    return _TvResultTile(
-                                      result: result,
-                                      tmdbService: tmdbService!,
-                                      onTap: () => _selectTvShow(result),
-                                    );
-                                  } else if (result
-                                      is OpenLibrarySearchResult) {
-                                    return BookResultTile(
-                                      result: result,
-                                      onTap: () => _selectBook(result),
-                                    );
-                                  } else if (result is AniListSearchResult) {
-                                    return ComicResultTile(
-                                      result: result,
-                                      onTap: () => _selectComic(result),
-                                    );
-                                  }
-                                  return const SizedBox.shrink();
-                                },
+                            : Column(
+                                children: [
+                                  Expanded(
+                                    child: ListView.builder(
+                                      controller: _scrollController,
+                                      itemCount: _results.length,
+                                      itemBuilder: (context, index) {
+                                        final result = _results[index];
+                                        if (result is TmdbSearchResult) {
+                                          return _MovieResultTile(
+                                            result: result,
+                                            tmdbService: tmdbService!,
+                                            onTap: () => _selectMovie(result),
+                                          );
+                                        } else if (result
+                                            is TmdbTvSearchResult) {
+                                          return _TvResultTile(
+                                            result: result,
+                                            tmdbService: tmdbService!,
+                                            onTap: () => _selectTvShow(result),
+                                          );
+                                        } else if (result
+                                            is OpenLibrarySearchResult) {
+                                          return BookResultTile(
+                                            result: result,
+                                            onTap: () => _selectBook(result),
+                                          );
+                                        } else if (result
+                                            is AniListSearchResult) {
+                                          return ComicResultTile(
+                                            result: result,
+                                            onTap: () => _selectComic(result),
+                                          );
+                                        } else if (result
+                                            is LastFmSearchResult) {
+                                          return AlbumResultTile(
+                                            result: result,
+                                            onTap: () => _selectAlbum(result),
+                                          );
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
+                                    ),
+                                  ),
+                                  if (_hasMore)
+                                    Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: TextButton(
+                                        onPressed: _loadMore,
+                                        child: const Text('Load More'),
+                                      ),
+                                    ),
+                                ],
                               ),
               ),
             ],

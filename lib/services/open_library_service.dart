@@ -42,12 +42,13 @@ class OpenLibrarySearchResult {
 }
 
 class OpenLibraryService {
-  Future<List<OpenLibrarySearchResult>> searchBooks(String query) async {
+  Future<List<OpenLibrarySearchResult>> searchBooks(String query,
+      {int page = 1}) async {
     if (query.trim().isEmpty) return [];
 
     final response = await http.get(
       Uri.parse(
-          'https://openlibrary.org/search.json?q=${Uri.encodeComponent(query)}'),
+          'https://openlibrary.org/search.json?q=${Uri.encodeComponent(query)}&page=$page'),
     );
 
     if (response.statusCode != 200) {

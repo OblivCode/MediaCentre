@@ -46,13 +46,14 @@ class TmdbService {
     return '$_imageBaseUrl$posterPath';
   }
 
-  Future<List<TmdbSearchResult>> searchMovies(String query) async {
+  Future<List<TmdbSearchResult>> searchMovies(String query,
+      {int page = 1}) async {
     if (!isConfigured || query.trim().isEmpty) return [];
 
     try {
       final response = await http.get(
         Uri.parse(
-          '$_baseUrl/search/movie?api_key=$_apiKey&query=${Uri.encodeComponent(query)}',
+          '$_baseUrl/search/movie?api_key=$_apiKey&query=${Uri.encodeComponent(query)}&page=$page',
         ),
       );
 
@@ -109,13 +110,14 @@ class TmdbService {
     }
   }
 
-  Future<List<TmdbTvSearchResult>> searchTvShows(String query) async {
+  Future<List<TmdbTvSearchResult>> searchTvShows(String query,
+      {int page = 1}) async {
     if (!isConfigured || query.trim().isEmpty) return [];
 
     try {
       final response = await http.get(
         Uri.parse(
-          '$_baseUrl/search/tv?api_key=$_apiKey&query=${Uri.encodeComponent(query)}',
+          '$_baseUrl/search/tv?api_key=$_apiKey&query=${Uri.encodeComponent(query)}&page=$page',
         ),
       );
 

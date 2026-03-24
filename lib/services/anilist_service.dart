@@ -21,12 +21,13 @@ class AniListSearchResult {
 }
 
 class AniListService {
-  Future<List<AniListSearchResult>> searchComics(String query) async {
+  Future<List<AniListSearchResult>> searchComics(String query,
+      {int page = 1}) async {
     if (query.trim().isEmpty) return [];
 
     const gql = r'''
       query ($search: String) {
-        Page(page: 1, perPage: 20) {
+        Page(page: $page, perPage: 20) {
           media(type: MANGA, search: $search) {
             id
             title {
