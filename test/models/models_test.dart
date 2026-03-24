@@ -35,6 +35,46 @@ void main() {
       expect(block.title, 'Test Collection');
     });
 
+    test('creates TvShowBlock for tv_show type', () {
+      final json = {
+        'type': 'tv_show',
+        'id': 'tv-id',
+        'title': 'Test TV Show',
+        'network': 'HBO',
+        'userRating': 5,
+        'seasons': [],
+      };
+
+      final block = mediaBlockFromJson(json);
+
+      expect(block, isA<TvShowBlock>());
+      expect(block.id, 'tv-id');
+      expect(block.title, 'Test TV Show');
+      expect((block as TvShowBlock).network, 'HBO');
+      expect(block.userRating, 5);
+      expect(block.seasons, isEmpty);
+    });
+
+    test('creates ComicBookBlock for comic_book type', () {
+      final json = {
+        'type': 'comic_book',
+        'id': 'comic-id',
+        'title': 'Test Comic',
+        'author': 'Test Author',
+        'chapterCount': 100,
+        'currentChapter': 10,
+      };
+
+      final block = mediaBlockFromJson(json);
+
+      expect(block, isA<ComicBookBlock>());
+      expect(block.id, 'comic-id');
+      expect(block.title, 'Test Comic');
+      expect((block as ComicBookBlock).author, 'Test Author');
+      expect(block.chapterCount, 100);
+      expect(block.currentChapter, 10);
+    });
+
     test('throws ArgumentError for unknown type', () {
       final json = {'type': 'unknown', 'id': 'test-id', 'title': 'Test'};
 
